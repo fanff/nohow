@@ -46,7 +46,7 @@ class BookElement(Widget):
         """Message emitted when this BookElement is clicked to request editing."""
 
         def __init__(self, sender: "BookElement", book_title: str) -> None:
-            super().__init__(sender, bubble=True)
+            super().__init__()
             self.book_title = book_title
 
     def on_click(self, event) -> None:
@@ -226,6 +226,7 @@ class BooksView(Widget, can_focus=False):
             except Exception:
                 try:
                     import asyncio
+
                     asyncio.create_task(self.app.push_screen(TOCEditScreen()))
                 except Exception:
                     pass
