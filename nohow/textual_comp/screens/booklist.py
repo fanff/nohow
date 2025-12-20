@@ -1,10 +1,11 @@
-from textual import Screen
+from textual.screen import Screen
+
 
 class BookListScreen(Screen):
-    def compose(self):
-        """Compose the UI components."""
-        pass
+    """Écran liste des livres (placeholder)."""
 
-    def Binding(self):
-        """Define key bindings."""
-        pass
+    BINDINGS: list[tuple[str, str, str]] = []
+
+    def compose(self):
+        """Compose les composants UI (vide pour l’instant)."""
+        return

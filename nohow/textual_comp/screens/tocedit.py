@@ -1,10 +1,11 @@
-from textual import Screen
+from textual.screen import Screen
+
 
 class TOCEditScreen(Screen):
-    def compose(self):
-        """Compose the UI components."""
-        pass
+    """Écran d’édition de la table des matières (placeholder)."""
 
-    def Binding(self):
-        """Define key bindings."""
-        pass
+    BINDINGS: list[tuple[str, str, str]] = []
+
+    def compose(self):
+        """Compose les composants UI (vide pour l’instant)."""
+        return

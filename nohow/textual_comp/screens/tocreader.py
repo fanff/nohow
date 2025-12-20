@@ -1,10 +1,11 @@
-from textual import Screen
+from textual.screen import Screen
+
 
 class TOCReaderScreen(Screen):
-    def compose(self):
-        """Compose the UI components."""
-        pass
+    """Écran de lecture / conversation sur un chapitre (placeholder)."""
 
-    def Binding(self):
-        """Define key bindings."""
-        pass
+    BINDINGS: list[tuple[str, str, str]] = []
+
+    def compose(self):
+        """Compose les composants UI (vide pour l’instant)."""
+        return
