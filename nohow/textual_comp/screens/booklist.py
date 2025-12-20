@@ -1,14 +1,48 @@
+from __future__ import annotations
+
 from textual.screen import Screen
+from textual.app import ComposeResult
+
+from nohow.textual_comp.widgets.booklist_widgets import BooksView
 
 
 class BookListScreen(Screen):
-    """Écran liste des livres (placeholder)."""
+    """Screen listing books."""
 
     BINDINGS = [
-        ("j", "focus_next", "Focus suivant"),
-        ("k", "focus_previous", "Focus précédent"),
+        ("j", "focus_next", "Focus next"),
+        ("k", "focus_previous", "Focus previous"),
     ]
 
-    def compose(self):
-        """Compose les composants UI (vide pour l’instant)."""
-        return
+    def compose(self) -> ComposeResult:
+        """Compose the UI components."""
+        yield BooksView(id="books_view")
+
+    def on_mount(self) -> None:
+        """Load books from the database and pass them to the BooksView."""
+        self.run_worker(self._load_books(), exclusive=True)
+
+    async def _load_books(self) -> None:
+        books = []
+
+        try:
+            from nohow.db.utils import setup_database, get_session
+            from nohow.db.models import Book
+
+            engine = setup_database()
+            session = get_session(engine)
+
+            try:
+                result = session.query(Book).all()
+                books = result or []
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+        except Exception:
+            books = []
+
+        books_view = self.query_one("#books_view", BooksView)
+        books_view.set_books(books)

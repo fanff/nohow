@@ -52,3 +52,7 @@ class BooksView(Widget):
 
     def compose(self):
         yield VerticalScroll(id="books_scroll")
+
+    def set_books(self, books) -> None:
+        """Receive the current list of books from the DB (placeholder for now)."""
+        return
