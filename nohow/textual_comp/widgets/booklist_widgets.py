@@ -81,10 +81,11 @@ class BooksView(Widget):
     }
 
     BooksView > VerticalScroll > Grid {
-        grid-template-columns: repeat(3, 1fr);
-        /* Use minmax so rows are at least as tall as our BookElement height,
-           but can grow if content needs more space. 'auto' lets the grid
-           expand to fit larger content (e.g., taller titles). */
+        /* Use basic grid settings without a fixed column template so the
+           Python layout logic (mounting items into the Grid) determines
+           how many items appear per row. Keep rows flexible in height. */
+        display: grid;
+        grid-auto-flow: row;
         grid-auto-rows: minmax(5, auto);
         gap: 1 1;
         width: 100%;
