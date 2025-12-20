@@ -1,12 +1,14 @@
-from textual.screen import Screen
-from textual.reactive import reactive
-from textual.widget import Widget
-from textual.widgets import Header, Footer
-from textual.containers import Vertical, Horizontal
+from __future__ import annotations
+
 from textual.app import ComposeResult
-from textual.widgets import Static, Input, Button, TextArea
-from nohow.db.utils import setup_database, get_session
+from textual.containers import Horizontal
+from textual.reactive import reactive
+from textual.screen import Screen
+from textual.widget import Widget
+from textual.widgets import Button, Footer, Header, Input, Static, TextArea
+
 from nohow.db.models import Book
+from nohow.db.utils import get_session, setup_database
 
 
 class BookEditWidget(Widget):
@@ -39,7 +41,6 @@ class BookEditWidget(Widget):
 
     def __init__(self, book_title: str = "", **kwargs) -> None:
         super().__init__(**kwargs)
-        # Initialize the reactive with the provided initial value.
         self.book_title = book_title
 
     def compose(self) -> ComposeResult:
@@ -57,18 +58,17 @@ class BookEditWidget(Widget):
         )
 
     def on_mount(self) -> None:
-        # Focus the title input when the widget mounts if possible.
+        # Not database-related; leaving as-is.
         try:
             self.query_one("#title_input", Input).focus()
         except Exception:
             pass
 
     def on_input_changed(self, event) -> None:
-        # Keep the reactive value in sync with the Input's value.
+        # Not database-related; leaving as-is.
         try:
             self.book_title = event.value
         except Exception:
-            # Be defensive: ignore unexpected event shapes.
             pass
 
 
@@ -86,7 +86,7 @@ class TOCEditScreen(Screen):
 
     DEFAULT_CSS = """
     TOCEditScreen {
-        
+
     }
     """
 
@@ -96,19 +96,16 @@ class TOCEditScreen(Screen):
 
     def __init__(self, initial_title: str = "", **kwargs) -> None:
         super().__init__(**kwargs)
-        # Title to pre-populate the editor with.
         self.initial_title = initial_title
-        # Result will be set to a dict {"title":..., "content":...} on OK, or None on cancel.
         self.result = None
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield BookEditWidget(id="book_edit", book_title=self.initial_title)
-
         yield Footer()
 
     def on_mount(self) -> None:
-        # Focus the markdown area so users can start typing immediately.
+        # Not database-related; leaving as-is.
         try:
             self.query_one("#markdown_area", TextArea).focus()
         except Exception:
@@ -123,303 +120,123 @@ class TOCEditScreen(Screen):
         button_id = getattr(event.button, "id", None) or getattr(
             event.button, "label", None
         )
+
         if button_id == "ok":
             try:
                 book_widget = self.query_one("#book_edit", BookEditWidget)
                 title = book_widget.book_title
             except Exception:
                 title = ""
+
             try:
-                content = getattr(
-                    self.query_one("#markdown_area", TextArea), "value", ""
-                )
+                content = getattr(self.query_one("#markdown_area", TextArea), "value", "")
             except Exception:
                 content = ""
 
-            # Best-effort: persist the book and its TOC/content to the database.
             saved = False
+            error: str | None = None
+            session = None
+
             try:
                 engine = setup_database()
                 session = get_session(engine)
 
                 existing = None
                 if title:
+                    # Prefer the canonical column name.
                     try:
                         existing = session.query(Book).filter_by(title=title).first()
-                    except Exception:
-                        # fallback: try alternative column names
+                    except Exception as e:
+                        # Fallback: try alternative column names, but do not silence failures.
+                        self.app.log(
+                            f"DB query using filter_by(title=...) failed; trying fallbacks. Error: {e!r}"
+                        )
                         for col in ("title", "name"):
-                            if hasattr(Book, col):
-                                try:
-                                    existing = session.query(Book).filter(getattr(Book, col) == title).first()
-                                    if existing:
-                                        break
-                                except Exception:
-                                    pass
+                            if not hasattr(Book, col):
+                                continue
+                            try:
+                                existing = (
+                                    session.query(Book)
+                                    .filter(getattr(Book, col) == title)
+                                    .first()
+                                )
+                                if existing:
+                                    break
+                            except Exception as e2:
+                                self.app.log(
+                                    f"DB query fallback using column '{col}' failed. Error: {e2!r}"
+                                )
 
                 if existing is not None:
-                    # update existing record with best-effort field names
+                    # Update existing record with best-effort field names.
+                    updated_any = False
+
                     for col in ("title", "name"):
                         if hasattr(existing, col):
-                            try:
-                                setattr(existing, col, title)
-                            except Exception:
-                                pass
+                            setattr(existing, col, title)
+                            updated_any = True
+                            break
+
                     for col in ("toc", "content", "markdown", "body"):
                         if hasattr(existing, col):
-                            try:
-                                setattr(existing, col, content)
-                            except Exception:
-                                pass
+                            setattr(existing, col, content)
+                            updated_any = True
+                            break
+
+                    if not updated_any:
+                        raise RuntimeError(
+                            "Book model has no recognized fields to update (expected title/name and toc/content/markdown/body)."
+                        )
+
                     session.add(existing)
                 else:
-                    # create new Book instance using common field names (best-effort)
-                    kwargs = {}
-                    for col in ("title", "name"):
-                        kwargs[col] = title
-                        break
-                    for col in ("toc", "content", "markdown", "body"):
-                        kwargs[col] = content
-                        break
-                    try:
-                        new = Book(**kwargs)
-                        session.add(new)
-                    except Exception:
-                        # final fallback: try well-known combination
-                        try:
-                            new = Book(title=title, toc=content)
-                            session.add(new)
-                        except Exception:
-                            pass
+                    # Create new Book instance using common field names (best-effort).
+                    kwargs: dict[str, str] = {}
+
+                    title_field = next(
+                        (col for col in ("title", "name") if hasattr(Book, col)), None
+                    )
+                    content_field = next(
+                        (col for col in ("toc", "content", "markdown", "body") if hasattr(Book, col)),
+                        None,
+                    )
+
+                    if title_field is None or content_field is None:
+                        raise RuntimeError(
+                            "Book model has no recognized fields (expected title/name and toc/content/markdown/body)."
+                        )
+
+                    kwargs[title_field] = title
+                    kwargs[content_field] = content
+
+                    new = Book(**kwargs)
+                    session.add(new)
 
                 session.commit()
                 saved = True
-            except Exception:
-                try:
-                    session.rollback()
-                except Exception:
-                    pass
 
-            # Expose results so the caller can inspect them after the screen is popped.
-            self.result = {"title": title, "content": content, "saved": saved}
-            try:
-                # Prefer app.pop_screen() to remove the top-most pushed screen.
-                self.app.pop_screen()
-            except Exception:
-                pass
-        elif button_id == "cancel":
-            self.result = None
-            try:
-                self.app.pop_screen()
-            except Exception:
-                pass
-from textual.screen import Screen
-from textual.reactive import reactive
-from textual.widget import Widget
-from textual.widgets import Header, Footer
-from textual.containers import Vertical, Horizontal
-from textual.app import ComposeResult
-from textual.widgets import Static, Input, Button, TextArea
-
-
-class BookEditWidget(Widget):
-    """Widget exposing a reactive book_title and an Input bound to it.
-
-    This small widget keeps a reactive 'book_title' attribute in sync with
-    an Input widget so parent screens can read the current title at any time.
-    """
-
-    DEFAULT_CSS = """
-    BookEditWidget {
-        border: solid $secondary;
-        padding: 1 1;
-        height: auto;
-    }
-    BookEditWidget > Horizontal#buttons {
-        height: 4;
-        align-vertical: bottom;
-        padding-top: 1;
-    }
-    BookEditWidget > Input#title_input {
-        height: 3;
-        }
-    BookEditWidget > TextArea {
-        height: 1fr;
-    }
-    """
-
-    book_title: reactive[str] = reactive("")
-
-    def __init__(self, book_title: str = "", **kwargs) -> None:
-        super().__init__(**kwargs)
-        # Initialize the reactive with the provided initial value.
-        self.book_title = book_title
-
-    def compose(self) -> ComposeResult:
-        yield Static("Title:", id="title_label")
-        yield Input(
-            value=self.book_title,
-            placeholder="Enter book title...",
-            id="title_input",
-        )
-        yield TextArea(tooltip="Write markdown here...", id="markdown_area")
-        yield Horizontal(
-            Button("OK", id="ok", variant="primary"),
-            Button("Cancel", id="cancel", variant="error"),
-            id="buttons",
-        )
-
-    def on_mount(self) -> None:
-        # Focus the title input when the widget mounts if possible.
-        try:
-            self.query_one("#title_input", Input).focus()
-        except Exception:
-            pass
-
-    def on_input_changed(self, event) -> None:
-        # Keep the reactive value in sync with the Input's value.
-        try:
-            self.book_title = event.value
-        except Exception:
-            # Be defensive: ignore unexpected event shapes.
-            pass
-
-
-class TOCEditScreen(Screen):
-    """Écran d’édition de la table des matières.
-
-    Screen layout:
-    - BookEditWidget (reactive title + Input)
-    - TextArea for markdown content
-    - Bottom horizontal bar with OK / Cancel buttons
-
-    When OK is pressed the screen sets self.result = {"title": ..., "content": ...}
-    and requests to be popped; when Cancel is pressed self.result is set to None.
-    """
-
-    DEFAULT_CSS = """
-    TOCEditScreen {
-        
-    }
-    """
-
-    BINDINGS: list[tuple[str, str, str]] = []
-
-    content: reactive[str] = reactive("")
-
-    def __init__(self, initial_title: str = "", **kwargs) -> None:
-        super().__init__(**kwargs)
-        # Title to pre-populate the editor with.
-        self.initial_title = initial_title
-        # Result will be set to a dict {"title":..., "content":...} on OK, or None on cancel.
-        self.result = None
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        yield BookEditWidget(id="book_edit", book_title=self.initial_title)
-
-        yield Footer()
-
-    def on_mount(self) -> None:
-        # Focus the markdown area so users can start typing immediately.
-        try:
-            self.query_one("#markdown_area", TextArea).focus()
-        except Exception:
-            pass
-
-    def on_button_pressed(self, event) -> None:
-        """Handle OK / Cancel button presses.
-
-        OK: collect the title and markdown content into self.result and pop the screen.
-        Cancel: set self.result = None and pop the screen.
-        """
-        button_id = getattr(event.button, "id", None) or getattr(
-            event.button, "label", None
-        )
-        if button_id == "ok":
-            try:
-                book_widget = self.query_one("#book_edit", BookEditWidget)
-                title = book_widget.book_title
-            except Exception:
-                title = ""
-            try:
-                content = getattr(
-                    self.query_one("#markdown_area", TextArea), "value", ""
-                )
-            except Exception:
-                content = ""
-
-            # Best-effort: persist the book and its TOC/content to the database.
-            saved = False
-            try:
-                engine = setup_database()
-                session = get_session(engine)
-
-                existing = None
-                if title:
+            except Exception as e:
+                error = str(e)
+                self.app.log(f"Failed to save book/TOC to database: {e!r}")
+                if session is not None:
                     try:
-                        existing = session.query(Book).filter_by(title=title).first()
-                    except Exception:
-                        # fallback: try alternative column names
-                        for col in ("title", "name"):
-                            if hasattr(Book, col):
-                                try:
-                                    existing = session.query(Book).filter(getattr(Book, col) == title).first()
-                                    if existing:
-                                        break
-                                except Exception:
-                                    pass
-
-                if existing is not None:
-                    # update existing record with best-effort field names
-                    for col in ("title", "name"):
-                        if hasattr(existing, col):
-                            try:
-                                setattr(existing, col, title)
-                            except Exception:
-                                pass
-                    for col in ("toc", "content", "markdown", "body"):
-                        if hasattr(existing, col):
-                            try:
-                                setattr(existing, col, content)
-                            except Exception:
-                                pass
-                    session.add(existing)
-                else:
-                    # create new Book instance using common field names (best-effort)
-                    kwargs = {}
-                    for col in ("title", "name"):
-                        kwargs[col] = title
-                        break
-                    for col in ("toc", "content", "markdown", "body"):
-                        kwargs[col] = content
-                        break
+                        session.rollback()
+                    except Exception as rb_e:
+                        self.app.log(f"Database rollback failed: {rb_e!r}")
+            finally:
+                if session is not None:
                     try:
-                        new = Book(**kwargs)
-                        session.add(new)
-                    except Exception:
-                        # final fallback: try well-known combination
-                        try:
-                            new = Book(title=title, toc=content)
-                            session.add(new)
-                        except Exception:
-                            pass
+                        session.close()
+                    except Exception as close_e:
+                        self.app.log(f"Database session close failed: {close_e!r}")
 
-                session.commit()
-                saved = True
-            except Exception:
-                try:
-                    session.rollback()
-                except Exception:
-                    pass
+            self.result = {"title": title, "content": content, "saved": saved, "error": error}
 
-            # Expose results so the caller can inspect them after the screen is popped.
-            self.result = {"title": title, "content": content, "saved": saved}
             try:
-                # Prefer app.pop_screen() to remove the top-most pushed screen.
                 self.app.pop_screen()
             except Exception:
                 pass
+
         elif button_id == "cancel":
             self.result = None
             try:
