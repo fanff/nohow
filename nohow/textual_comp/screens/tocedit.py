@@ -32,7 +32,7 @@ class BookEditWidget(Widget):
     def compose(self) -> ComposeResult:
         yield Static("Title:", id="title_label")
         yield Input(
-            value=self.book_title, placeholder="Enter book title...", id="title_input"
+            value=self.book_title, placeholder="Enter book title...", id="title_input",
             Horizontal(
                 Button("OK", id="ok", variant="primary"),
                 Button("Cancel", id="cancel", variant="error"),
