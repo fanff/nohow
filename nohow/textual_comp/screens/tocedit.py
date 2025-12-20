@@ -33,11 +33,11 @@ class BookEditWidget(Widget):
         yield Static("Title:", id="title_label")
         yield Input(
             value=self.book_title, placeholder="Enter book title...", id="title_input",
-            Horizontal(
-                Button("OK", id="ok", variant="primary"),
-                Button("Cancel", id="cancel", variant="error"),
-                id="buttons",
-            ),
+        )
+        yield Horizontal(
+            Button("OK", id="ok", variant="primary"),
+            Button("Cancel", id="cancel", variant="error"),
+            id="buttons",
         )
 
     def on_mount(self) -> None:
