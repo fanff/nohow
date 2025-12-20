@@ -102,3 +102,51 @@ class BooksView(Widget):
 
         insert_index = 1  # right after the Add widget
         scroll.mount(BookElement(book_title=book_title), before=insert_index)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle the Add button click from inside this widget."""
+        if event.button.id != "add_book_button":
+            return
+
+        # Spawn a worker to create the book in the DB, then update the UI.
+        self.run_worker(self._create_book_and_insert(), exclusive=True)
+
+    async def _create_book_and_insert(self) -> None:
+        """Create a new book in the database and insert it into the list."""
+        default_title = "New Book"
+
+        created_book = None
+        try:
+            from nohow.db.utils import get_session, setup_database
+            from nohow.db.models import Book
+
+            engine = setup_database()
+            session = get_session(engine)
+
+            try:
+                created_book = Book(title=default_title)
+                session.add(created_book)
+                session.commit()
+                try:
+                    session.refresh(created_book)
+                except Exception:
+                    pass
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+        except Exception:
+            created_book = None
+
+        # Update UI (we at least insert the title we attempted to create).
+        title = (
+            getattr(created_book, "title", None)
+            or getattr(created_book, "name", None)
+            or default_title
+        )
+        self.add_book(title)
+
+        # Prepare to jump to another screen later.
+        # self.emit("action change screen somethin...")
