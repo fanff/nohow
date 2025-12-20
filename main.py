@@ -1,8 +1,21 @@
-from nohow.db.utils import setup_database
+from __future__ import annotations
+
+from textual.app import App
+
+from nohow.textual_comp.screens.booklist import BookListScreen
 
 
-def main():
-    setup_database()
+class NohowApp(App):
+    """Main Textual application."""
+
+    TITLE = "Nohow"
+
+    def on_mount(self) -> None:
+        self.push_screen(BookListScreen())
+
+
+def main() -> None:
+    NohowApp().run()
 
 
 if __name__ == "__main__":

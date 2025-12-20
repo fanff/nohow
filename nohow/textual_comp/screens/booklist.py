@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from textual.screen import Screen
 from textual.app import ComposeResult
+from textual.screen import Screen
+from textual.widgets import Footer, Header
 
 from nohow.textual_comp.widgets.booklist_widgets import BooksView
 
@@ -16,7 +17,9 @@ class BookListScreen(Screen):
 
     def compose(self) -> ComposeResult:
         """Compose the UI components."""
+        yield Header()
         yield BooksView(id="books_view")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Load books from the database and pass them to the BooksView."""
@@ -26,7 +29,7 @@ class BookListScreen(Screen):
         books = []
 
         try:
-            from nohow.db.utils import setup_database, get_session
+            from nohow.db.utils import get_session, setup_database
             from nohow.db.models import Book
 
             engine = setup_database()
