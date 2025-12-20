@@ -83,10 +83,11 @@ class BooksView(Widget):
     BooksView > VerticalScroll > Grid {
         /* Use basic grid settings without a fixed column template so the
            Python layout logic (mounting items into the Grid) determines
-           how many items appear per row. Keep rows flexible in height. */
+           how many items appear per row. Use a numeric row size (required).
+           Adjust this number if the element heights change. */
         display: grid;
         grid-auto-flow: row;
-        grid-auto-rows: minmax(5, auto);
+        grid-auto-rows: 5;
         gap: 1 1;
         width: 100%;
     }
