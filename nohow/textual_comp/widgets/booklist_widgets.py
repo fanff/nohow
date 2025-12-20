@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from textual.containers import VerticalScroll
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Static
-from textual.containers import VerticalScroll
 
 
 class BookElement(Widget):
@@ -29,7 +30,10 @@ class BookElement(Widget):
         yield Static(self.book_title, id="title")
 
     def watch_book_title(self, new_value: str) -> None:
-        title = self.query_one("#title", Static)
+        try:
+            title = self.query_one("#title", Static)
+        except NoMatches:
+            return
         title.update(new_value)
 
 
@@ -117,8 +121,8 @@ class BooksView(Widget):
 
         created_book = None
         try:
-            from nohow.db.utils import get_session, setup_database
             from nohow.db.models import Book
+            from nohow.db.utils import get_session, setup_database
 
             engine = setup_database()
             session = get_session(engine)
