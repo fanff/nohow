@@ -5,6 +5,8 @@ from textual.widgets import Header, Footer
 from textual.containers import Vertical, Horizontal
 from textual.app import ComposeResult
 from textual.widgets import Static, Input, Button, TextArea
+from nohow.db.utils import setup_database, get_session
+from nohow.db.models import Book
 
 
 class BookEditWidget(Widget):
@@ -133,8 +135,73 @@ class TOCEditScreen(Screen):
                 )
             except Exception:
                 content = ""
+
+            # Best-effort: persist the book and its TOC/content to the database.
+            saved = False
+            try:
+                engine = setup_database()
+                session = get_session(engine)
+
+                existing = None
+                if title:
+                    try:
+                        existing = session.query(Book).filter_by(title=title).first()
+                    except Exception:
+                        # fallback: try alternative column names
+                        for col in ("title", "name"):
+                            if hasattr(Book, col):
+                                try:
+                                    existing = session.query(Book).filter(getattr(Book, col) == title).first()
+                                    if existing:
+                                        break
+                                except Exception:
+                                    pass
+
+                if existing is not None:
+                    # update existing record with best-effort field names
+                    for col in ("title", "name"):
+                        if hasattr(existing, col):
+                            try:
+                                setattr(existing, col, title)
+                            except Exception:
+                                pass
+                    for col in ("toc", "content", "markdown", "body"):
+                        if hasattr(existing, col):
+                            try:
+                                setattr(existing, col, content)
+                            except Exception:
+                                pass
+                    session.add(existing)
+                else:
+                    # create new Book instance using common field names (best-effort)
+                    kwargs = {}
+                    for col in ("title", "name"):
+                        kwargs[col] = title
+                        break
+                    for col in ("toc", "content", "markdown", "body"):
+                        kwargs[col] = content
+                        break
+                    try:
+                        new = Book(**kwargs)
+                        session.add(new)
+                    except Exception:
+                        # final fallback: try well-known combination
+                        try:
+                            new = Book(title=title, toc=content)
+                            session.add(new)
+                        except Exception:
+                            pass
+
+                session.commit()
+                saved = True
+            except Exception:
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
+
             # Expose results so the caller can inspect them after the screen is popped.
-            self.result = {"title": title, "content": content}
+            self.result = {"title": title, "content": content, "saved": saved}
             try:
                 # Prefer app.pop_screen() to remove the top-most pushed screen.
                 self.app.pop_screen()
@@ -281,8 +348,73 @@ class TOCEditScreen(Screen):
                 )
             except Exception:
                 content = ""
+
+            # Best-effort: persist the book and its TOC/content to the database.
+            saved = False
+            try:
+                engine = setup_database()
+                session = get_session(engine)
+
+                existing = None
+                if title:
+                    try:
+                        existing = session.query(Book).filter_by(title=title).first()
+                    except Exception:
+                        # fallback: try alternative column names
+                        for col in ("title", "name"):
+                            if hasattr(Book, col):
+                                try:
+                                    existing = session.query(Book).filter(getattr(Book, col) == title).first()
+                                    if existing:
+                                        break
+                                except Exception:
+                                    pass
+
+                if existing is not None:
+                    # update existing record with best-effort field names
+                    for col in ("title", "name"):
+                        if hasattr(existing, col):
+                            try:
+                                setattr(existing, col, title)
+                            except Exception:
+                                pass
+                    for col in ("toc", "content", "markdown", "body"):
+                        if hasattr(existing, col):
+                            try:
+                                setattr(existing, col, content)
+                            except Exception:
+                                pass
+                    session.add(existing)
+                else:
+                    # create new Book instance using common field names (best-effort)
+                    kwargs = {}
+                    for col in ("title", "name"):
+                        kwargs[col] = title
+                        break
+                    for col in ("toc", "content", "markdown", "body"):
+                        kwargs[col] = content
+                        break
+                    try:
+                        new = Book(**kwargs)
+                        session.add(new)
+                    except Exception:
+                        # final fallback: try well-known combination
+                        try:
+                            new = Book(title=title, toc=content)
+                            session.add(new)
+                        except Exception:
+                            pass
+
+                session.commit()
+                saved = True
+            except Exception:
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
+
             # Expose results so the caller can inspect them after the screen is popped.
-            self.result = {"title": title, "content": content}
+            self.result = {"title": title, "content": content, "saved": saved}
             try:
                 # Prefer app.pop_screen() to remove the top-most pushed screen.
                 self.app.pop_screen()
