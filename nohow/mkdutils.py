@@ -10,11 +10,13 @@ class TocNode:
 
     - level: 1 for H1, 2 for H2, etc.
     - title: the heading text
+    - line: 1-based line number where the heading was found
     - children: nested headings (e.g., H2 under an H1)
     """
 
     title: str
     level: int
+    line: int
     children: List["TocNode"] = field(default_factory=list)
 
 
@@ -47,7 +49,7 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
     in_fenced_code = False
     fence: str | None = None  # "```" or "~~~"
 
-    for raw_line in markdown.splitlines():
+    for line_no, raw_line in enumerate(markdown.splitlines(), start=1):
         line = raw_line.rstrip("\n")
 
         stripped = line.lstrip()
@@ -97,7 +99,7 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
             rest = rest[: i + 1].rstrip()
 
         title = rest
-        node = TocNode(title=title, level=level)
+        node = TocNode(title=title, level=level, line=line_no)
 
         # Pop until we find a parent with lower level.
         while stack and stack[-1].level >= level:
@@ -113,13 +115,13 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
     return roots
 
 
-def flatten_toc(toc: Sequence[TocNode]) -> List[tuple[int, str]]:
-    """Flatten a TOC tree into a list of (level, title) tuples (preorder)."""
-    out: List[tuple[int, str]] = []
+def flatten_toc(toc: Sequence[TocNode]) -> List[tuple[int, str, int]]:
+    """Flatten a TOC tree into a list of (level, title, line) tuples (preorder)."""
+    out: List[tuple[int, str, int]] = []
 
     def walk(nodes: Sequence[TocNode]) -> None:
         for n in nodes:
-            out.append((n.level, n.title))
+            out.append((n.level, n.title, n.line))
             walk(n.children)
 
     walk(toc)
