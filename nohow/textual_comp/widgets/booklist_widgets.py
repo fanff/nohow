@@ -238,12 +238,16 @@ class BooksView(Widget, can_focus=False):
             # versions expose push_screen as sync or async; try sync first,
             # fall back to scheduling an async task if necessary.
             try:
-                self.app.push_screen(TOCEditScreen())
+                # Pass the clicked book's title to the edit screen so it can
+                # pre-populate the editor.
+                self.app.push_screen(TOCEditScreen(initial_title=message.book_title))
             except Exception:
                 try:
                     import asyncio
 
-                    asyncio.create_task(self.app.push_screen(TOCEditScreen()))
+                    asyncio.create_task(
+                        self.app.push_screen(TOCEditScreen(initial_title=message.book_title))
+                    )
                 except Exception:
                     pass
         except Exception:
