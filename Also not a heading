@@ -1,0 +1,26 @@
+
+## Real Subtitle
+""".lstrip()
+
+    toc = extract_toc_tree(md)
+    flat = flatten_toc(toc)
+
+    assert flat == [
+        (1, "Real Title"),
+        (2, "Real Subtitle"),
+    ]
+
+
+def test_extract_toc_strips_closing_hashes() -> None:
+    md = """
+# Title ####
+## Subtitle ##
+""".lstrip()
+
+    toc = extract_toc_tree(md)
+    flat = flatten_toc(toc)
+
+    assert flat == [
+        (1, "Title"),
+        (2, "Subtitle"),
+    ]
