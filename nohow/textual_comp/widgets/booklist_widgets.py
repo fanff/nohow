@@ -38,8 +38,8 @@ class AddBookElement(Widget):
 
     DEFAULT_CSS = """
     AddBookElement {
-        width: 20;
-        height: 5;
+        width: 30;
+        height: 9;
         border: solid $primary;
         padding: 1 1;
         margin: 1 1;
@@ -78,10 +78,10 @@ class BooksView(Widget):
             id="books_scroll",
         )
 
-    def set_books(self, books) -> None:
+    async def set_books(self, books) -> None:
         """Receive the current list of books from the DB and populate the view."""
         scroll = self.query_one("#books_scroll", VerticalScroll)
-        scroll.remove_children()
+        await scroll.remove_children()
 
         # Always keep the "Add" element at the top.
         scroll.mount(AddBookElement(id="add_book_element"))
