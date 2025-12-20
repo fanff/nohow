@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from textual.containers import VerticalScroll, Grid
-import math
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Button, Static
+from textual.widgets import Button, Static, Input
 
 
 class BookElement(Widget):
@@ -34,19 +33,36 @@ class BookElement(Widget):
 
     def compose(self):
         yield Static(self.book_title, id="title")
+        # An Input mapped to the reactive `book_title` so the title is editable
+        # in-place if desired by future UI behavior.
+        yield Input(value=self.book_title, id="title_input")
 
     def watch_book_title(self, new_value: str) -> None:
         try:
             title = self.query_one("#title", Static)
         except NoMatches:
-            return
-        title.update(new_value)
+            title = None
+        try:
+            input_ = self.query_one("#title_input", Input)
+        except NoMatches:
+            input_ = None
+
+        if title is not None:
+            title.update(new_value)
+
+        if input_ is not None:
+            try:
+                input_.value = new_value
+            except Exception:
+                # Be defensive if the input doesn't expose value assignment
+                pass
 
     class EditBook(Message):
         """Message emitted when this BookElement is clicked to request editing."""
 
         def __init__(self, sender: "BookElement", book_title: str) -> None:
-            super().__init__()
+            # Ensure the message bubbles up so parent containers/screens can catch it.
+            super().__init__(sender, bubble=True)
             self.book_title = book_title
 
     def on_click(self, event) -> None:
