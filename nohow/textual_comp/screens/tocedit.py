@@ -33,6 +33,11 @@ class BookEditWidget(Widget):
         yield Static("Title:", id="title_label")
         yield Input(
             value=self.book_title, placeholder="Enter book title...", id="title_input"
+            Horizontal(
+                Button("OK", id="ok", variant="primary"),
+                Button("Cancel", id="cancel", variant="error"),
+                id="buttons",
+            ),
         )
 
     def on_mount(self) -> None:
@@ -83,12 +88,7 @@ class TOCEditScreen(Screen):
         yield Header()
         yield Vertical(
             BookEditWidget(id="book_edit", book_title=self.initial_title),
-            TextArea(tooltip="Write markdown here...", id="markdown_area"),
-            Horizontal(
-                Button("OK", id="ok", variant="primary"),
-                Button("Cancel", id="cancel", variant="error"),
-                id="buttons",
-            ),
+            TextArea(tooltip="Write markdown here...", id="markdown_area", expand=True),
             id="main",
         )
         yield Footer()
