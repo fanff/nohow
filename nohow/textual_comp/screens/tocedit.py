@@ -75,13 +75,14 @@ class BookEditWidget(Widget):
 class TOCEditScreen(Screen):
     """Écran d’édition de la table des matières.
 
-    Screen layout:
-    - BookEditWidget (reactive title + Input)
-    - TextArea for markdown content
-    - Bottom horizontal bar with OK / Cancel buttons
+    When OK is pressed:
+    - load Book by id
+    - replace title and toc
+    - commit
+    - expose result and pop screen
 
-    When OK is pressed the screen sets self.result = {"title": ..., "content": ...}
-    and requests to be popped; when Cancel is pressed self.result is set to None.
+    When Cancel is pressed:
+    - set result to None and pop screen
     """
 
     DEFAULT_CSS = """
@@ -94,8 +95,9 @@ class TOCEditScreen(Screen):
 
     content: reactive[str] = reactive("")
 
-    def __init__(self, initial_title: str = "", **kwargs) -> None:
+    def __init__(self, book_id: int, initial_title: str = "", **kwargs) -> None:
         super().__init__(**kwargs)
+        self.book_id = book_id
         self.initial_title = initial_title
         self.result = None
 
@@ -112,130 +114,28 @@ class TOCEditScreen(Screen):
             pass
 
     def on_button_pressed(self, event) -> None:
-        """Handle OK / Cancel button presses.
-
-        OK: collect the title and markdown content into self.result and pop the screen.
-        Cancel: set self.result = None and pop the screen.
-        """
         button_id = getattr(event.button, "id", None) or getattr(
             event.button, "label", None
         )
 
         if button_id == "ok":
+            book_widget = self.query_one("#book_edit", BookEditWidget)
+            title = book_widget.book_title
+            toc = self.query_one("#markdown_area", TextArea).value
+
+            engine = setup_database()
+            session = get_session(engine)
             try:
-                book_widget = self.query_one("#book_edit", BookEditWidget)
-                title = book_widget.book_title
-            except Exception:
-                title = ""
-
-            try:
-                content = getattr(self.query_one("#markdown_area", TextArea), "value", "")
-            except Exception:
-                content = ""
-
-            saved = False
-            error: str | None = None
-            session = None
-
-            try:
-                engine = setup_database()
-                session = get_session(engine)
-
-                existing = None
-                if title:
-                    # Prefer the canonical column name.
-                    try:
-                        existing = session.query(Book).filter_by(title=title).first()
-                    except Exception as e:
-                        # Fallback: try alternative column names, but do not silence failures.
-                        self.app.log(
-                            f"DB query using filter_by(title=...) failed; trying fallbacks. Error: {e!r}"
-                        )
-                        for col in ("title", "name"):
-                            if not hasattr(Book, col):
-                                continue
-                            try:
-                                existing = (
-                                    session.query(Book)
-                                    .filter(getattr(Book, col) == title)
-                                    .first()
-                                )
-                                if existing:
-                                    break
-                            except Exception as e2:
-                                self.app.log(
-                                    f"DB query fallback using column '{col}' failed. Error: {e2!r}"
-                                )
-
-                if existing is not None:
-                    # Update existing record with best-effort field names.
-                    updated_any = False
-
-                    for col in ("title", "name"):
-                        if hasattr(existing, col):
-                            setattr(existing, col, title)
-                            updated_any = True
-                            break
-
-                    for col in ("toc", "content", "markdown", "body"):
-                        if hasattr(existing, col):
-                            setattr(existing, col, content)
-                            updated_any = True
-                            break
-
-                    if not updated_any:
-                        raise RuntimeError(
-                            "Book model has no recognized fields to update (expected title/name and toc/content/markdown/body)."
-                        )
-
-                    session.add(existing)
-                else:
-                    # Create new Book instance using common field names (best-effort).
-                    kwargs: dict[str, str] = {}
-
-                    title_field = next(
-                        (col for col in ("title", "name") if hasattr(Book, col)), None
-                    )
-                    content_field = next(
-                        (col for col in ("toc", "content", "markdown", "body") if hasattr(Book, col)),
-                        None,
-                    )
-
-                    if title_field is None or content_field is None:
-                        raise RuntimeError(
-                            "Book model has no recognized fields (expected title/name and toc/content/markdown/body)."
-                        )
-
-                    kwargs[title_field] = title
-                    kwargs[content_field] = content
-
-                    new = Book(**kwargs)
-                    session.add(new)
-
+                book = session.query(Book).filter_by(id=self.book_id).one()
+                book.title = title
+                book.toc = toc
+                session.add(book)
                 session.commit()
-                saved = True
-
-            except Exception as e:
-                error = str(e)
-                self.app.log(f"Failed to save book/TOC to database: {e!r}")
-                if session is not None:
-                    try:
-                        session.rollback()
-                    except Exception as rb_e:
-                        self.app.log(f"Database rollback failed: {rb_e!r}")
             finally:
-                if session is not None:
-                    try:
-                        session.close()
-                    except Exception as close_e:
-                        self.app.log(f"Database session close failed: {close_e!r}")
+                session.close()
 
-            self.result = {"title": title, "content": content, "saved": saved, "error": error}
-
-            try:
-                self.app.pop_screen()
-            except Exception:
-                pass
+            self.result = {"book_id": self.book_id, "title": title, "toc": toc}
+            self.app.pop_screen()
 
         elif button_id == "cancel":
             self.result = None
