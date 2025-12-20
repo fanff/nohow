@@ -3,6 +3,7 @@ from __future__ import annotations
 from textual.containers import VerticalScroll, Grid
 import math
 from textual.css.query import NoMatches
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Static
@@ -18,6 +19,10 @@ class BookElement(Widget):
         border: solid $primary;
         padding: 1 1;
         margin: 1 1;
+    }
+
+    BookElement:hover {
+        background: $accent;
     }
     """
 
@@ -36,6 +41,23 @@ class BookElement(Widget):
         except NoMatches:
             return
         title.update(new_value)
+
+    class EditBook(Message):
+        """Message emitted when this BookElement is clicked to request editing."""
+
+        def __init__(self, sender: "BookElement", book_title: str) -> None:
+            super().__init__(sender, bubble=True)
+            self.book_title = book_title
+
+    def on_click(self, event) -> None:
+        """Handle clicks on this widget and emit an EditBook message."""
+        # Prevent other handlers from also responding to this click.
+        try:
+            event.stop()
+        except Exception:
+            pass
+        # Post a message that bubbles up to parent widgets / app.
+        self.post_message(self.EditBook(self, self.book_title))
 
 
 class AddBookElement(Widget):
@@ -189,3 +211,24 @@ class BooksView(Widget, can_focus=False):
 
         # Prepare to jump to another screen later.
         # self.emit("action change screen somethin...")
+
+    def on_book_element_edit_book(self, message: BookElement.EditBook) -> None:
+        """Handle EditBook messages from BookElement and push an edit screen."""
+        try:
+            # Import locally to avoid top-level import cycles.
+            from nohow.textual_comp.screens.tocedit import TOCEditScreen
+
+            # Attempt to push the TOC edit screen on top. Different textual
+            # versions expose push_screen as sync or async; try sync first,
+            # fall back to scheduling an async task if necessary.
+            try:
+                self.app.push_screen(TOCEditScreen())
+            except Exception:
+                try:
+                    import asyncio
+                    asyncio.create_task(self.app.push_screen(TOCEditScreen()))
+                except Exception:
+                    pass
+        except Exception:
+            # If anything goes wrong (import or push), don't crash the UI.
+            pass
