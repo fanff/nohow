@@ -1,15 +1,25 @@
 from textual.screen import Screen
 from textual.reactive import reactive
 from textual.widget import Widget
+from textual.widgets import Header, Footer
 from textual.containers import Vertical, Horizontal
 from textual.app import ComposeResult
 from textual.widgets import Static, Input, Button, TextArea
+
 
 class BookEditWidget(Widget):
     """Widget exposing a reactive book_title and an Input bound to it.
 
     This small widget keeps a reactive 'book_title' attribute in sync with
     an Input widget so parent screens can read the current title at any time.
+    """
+
+    DEFAULT_CSS = """
+    BookEditWidget {
+        border: solid $secondary;
+        padding: 1 1;
+        height: auto;
+    }
     """
 
     book_title: reactive[str] = reactive("")
@@ -21,7 +31,9 @@ class BookEditWidget(Widget):
 
     def compose(self) -> ComposeResult:
         yield Static("Title:", id="title_label")
-        yield Input(value=self.book_title, placeholder="Enter book title...", id="title_input")
+        yield Input(
+            value=self.book_title, placeholder="Enter book title...", id="title_input"
+        )
 
     def on_mount(self) -> None:
         # Focus the title input when the widget mounts if possible.
@@ -38,6 +50,7 @@ class BookEditWidget(Widget):
             # Be defensive: ignore unexpected event shapes.
             pass
 
+
 class TOCEditScreen(Screen):
     """Écran d’édition de la table des matières.
 
@@ -49,6 +62,11 @@ class TOCEditScreen(Screen):
     When OK is pressed the screen sets self.result = {"title": ..., "content": ...}
     and requests to be popped; when Cancel is pressed self.result is set to None.
     """
+
+    DEFAULT_CSS = """
+    TOCEditScreen {
+        
+    }"""
 
     BINDINGS: list[tuple[str, str, str]] = []
 
@@ -62,9 +80,10 @@ class TOCEditScreen(Screen):
         self.result = None
 
     def compose(self) -> ComposeResult:
+        yield Header()
         yield Vertical(
             BookEditWidget(id="book_edit", book_title=self.initial_title),
-            TextArea(placeholder="Write markdown here...", id="markdown_area"),
+            TextArea(tooltip="Write markdown here...", id="markdown_area"),
             Horizontal(
                 Button("OK", id="ok", variant="primary"),
                 Button("Cancel", id="cancel", variant="error"),
@@ -72,6 +91,7 @@ class TOCEditScreen(Screen):
             ),
             id="main",
         )
+        yield Footer()
 
     def on_mount(self) -> None:
         # Focus the markdown area so users can start typing immediately.
@@ -86,7 +106,9 @@ class TOCEditScreen(Screen):
         OK: collect the title and markdown content into self.result and pop the screen.
         Cancel: set self.result = None and pop the screen.
         """
-        button_id = getattr(event.button, "id", None) or getattr(event.button, "label", None)
+        button_id = getattr(event.button, "id", None) or getattr(
+            event.button, "label", None
+        )
         if button_id == "ok":
             try:
                 book_widget = self.query_one("#book_edit", BookEditWidget)
@@ -94,7 +116,9 @@ class TOCEditScreen(Screen):
             except Exception:
                 title = ""
             try:
-                content = getattr(self.query_one("#markdown_area", TextArea), "value", "")
+                content = getattr(
+                    self.query_one("#markdown_area", TextArea), "value", ""
+                )
             except Exception:
                 content = ""
             # Expose results so the caller can inspect them after the screen is popped.
