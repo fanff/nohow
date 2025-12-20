@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from textual.containers import VerticalScroll
+from textual.containers import VerticalScroll, Grid
+import math
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -70,42 +71,80 @@ class BooksView(Widget):
         height: 100%;
     }
 
+    /* A scrollable grid: fixed to 3 columns, rows as needed.
+       The view contains a VerticalScroll with an inner Grid.
+       We control row count in Python to ensure a minimum of 2 rows. */
     BooksView > VerticalScroll {
         width: 100%;
         height: 100%;
+        padding: 1;
+    }
+
+    BooksView > VerticalScroll > Grid {
+        grid-template-columns: repeat(3, 1fr);
+        /* Make each row tall enough to fit BookElement / AddBookElement.
+           Adjust grid-auto-rows if the element heights change. */
+        grid-auto-rows: 7;
+        gap: 1 1;
+        width: 100%;
     }
     """
 
     def compose(self):
         yield VerticalScroll(
-            AddBookElement(id="add_book_element"),
+            Grid(id="books_grid"),
             id="books_scroll",
         )
 
     async def set_books(self, books) -> None:
-        """Receive the current list of books from the DB and populate the view."""
+        """Receive the current list of books from the DB and populate the grid.
+
+        Layout rules:
+        - Fixed columns = 3
+        - Minimum rows = 2
+        - Fill remaining cells with AddBookElement instances so the grid is always full.
+        """
         scroll = self.query_one("#books_scroll", VerticalScroll)
-        await scroll.remove_children()
+        grid = self.query_one("#books_grid", Grid)
+        await grid.remove_children()
 
-        # Always keep the "Add" element at the top.
-        scroll.mount(AddBookElement(id="add_book_element"))
-
+        # Normalize incoming books into a list of titles.
+        titles: list[str] = []
         for book in books or []:
-            title = getattr(book, "title", None) or getattr(book, "name", None) or str(book)
-            scroll.mount(BookElement(book_title=title))
+            titles.append(getattr(book, "title", None) or getattr(book, "name", None) or str(book))
 
-    def add_book(self, book_title: str) -> None:
-        """Insert a new book at the start of the list, after the Add widget."""
-        scroll = self.query_one("#books_scroll", VerticalScroll)
-        children = list(scroll.children)
+        columns = 3
+        rows = max(2, (len(titles) + columns - 1) // columns)
+        total_cells = rows * columns
 
-        # Ensure the Add widget exists and is first.
-        if not children or not isinstance(children[0], AddBookElement):
-            scroll.mount(AddBookElement(id="add_book_element"), before=0)
-            children = list(scroll.children)
+        # Mount book elements in order (left-to-right, top-to-bottom).
+        for title in titles:
+            grid.mount(BookElement(book_title=title))
 
-        insert_index = 1  # right after the Add widget
-        scroll.mount(BookElement(book_title=book_title), before=insert_index)
+        # Fill remaining cells with AddBookElement instances (no duplicate ids).
+        for _ in range(total_cells - len(titles)):
+            grid.mount(AddBookElement())
+
+    async def add_book(self, book_title: str) -> None:
+        """Insert a new book at the start of the list by rebuilding the grid.
+
+        We collect existing book titles and rebuild the grid so the layout rules
+        (3 columns, at least 2 rows) are preserved. This keeps logic simple and
+        consistent across different numbers of books.
+        """
+        grid = self.query_one("#books_grid", Grid)
+
+        # Collect existing book titles in order.
+        existing_titles = [
+            getattr(child, "book_title", None)
+            for child in grid.children
+            if isinstance(child, BookElement)
+        ]
+
+        # New book becomes first.
+        titles = [book_title] + existing_titles
+
+        await self.set_books(titles)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle the Add button click from inside this widget."""
@@ -150,7 +189,7 @@ class BooksView(Widget):
             or getattr(created_book, "name", None)
             or default_title
         )
-        self.add_book(title)
+        await self.add_book(title)
 
         # Prepare to jump to another screen later.
         # self.emit("action change screen somethin...")
