@@ -28,16 +28,18 @@ class BookElement(Widget):
     class EditBook(Message):
         """Message emitted when this BookElement is clicked to request editing."""
 
-        def __init__(self, sender: "BookElement", book_title: str) -> None:
+        def __init__(self, sender: "BookElement", book_title: str, book_id: int | None) -> None:
             # Ensure the message bubbles up so parent containers/screens can catch it.
             super().__init__()
             self.book_title = book_title
+            self.book_id = book_id
 
     book_title: reactive[str] = reactive("")
 
-    def __init__(self, book_title: str = "", **kwargs) -> None:
+    def __init__(self, book_title: str = "", book_id: int | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self.book_title = book_title
+        self.book_id = book_id
 
     def compose(self):
         yield Static(self.book_title, id="title")
@@ -58,7 +60,7 @@ class BookElement(Widget):
         except Exception:
             pass
         # Post a message that bubbles up to parent widgets / app.
-        self.post_message(self.EditBook(self, self.book_title))
+        self.post_message(self.EditBook(self, self.book_title, self.book_id))
 
 
 class AddBookElement(Widget):
@@ -125,23 +127,27 @@ class BooksView(Widget, can_focus=False):
         grid = self.query_one("#books_grid", Grid)
         await grid.remove_children()
 
-        # Normalize incoming books into a list of titles.
-        titles: list[str] = []
+        # Normalize incoming books into (id, title) pairs.
+        items: list[tuple[int | None, str]] = []
         for book in books or []:
-            titles.append(
-                getattr(book, "title", None) or getattr(book, "name", None) or str(book)
-            )
+            if isinstance(book, str):
+                items.append((None, book))
+                continue
+
+            book_id = getattr(book, "id", None)
+            title = getattr(book, "title", None) or getattr(book, "name", None) or str(book)
+            items.append((book_id, title))
 
         columns = 3
         rows = 3
         total_cells = rows * columns
 
         # Mount book elements in order (left-to-right, top-to-bottom).
-        for title in titles[:total_cells]:
-            await grid.mount(BookElement(book_title=title))
+        for book_id, title in items[:total_cells]:
+            await grid.mount(BookElement(book_title=title, book_id=book_id))
 
         # Fill remaining cells with AddBookElement instances (no duplicate ids).
-        for _ in range(total_cells - len(titles)):
+        for _ in range(total_cells - len(items)):
             await grid.mount(AddBookElement())
 
     async def add_book(self, book_title: str) -> None:
