@@ -13,8 +13,8 @@ class BookElement(Widget):
 
     DEFAULT_CSS = """
     BookElement {
-        width: 20;
-        height: 5;
+        width: 100%;
+        height: 100%;
         border: solid $primary;
         padding: 1 1;
         margin: 1 1;
@@ -43,16 +43,16 @@ class AddBookElement(Widget):
 
     DEFAULT_CSS = """
     AddBookElement {
-        width: 30;
-        height: 9;
-        border: solid $primary;
+        width: 100%;
+        height: 100%;
+        
         padding: 1 1;
         margin: 1 1;
         content-align: center middle;
     }
 
     AddBookElement Button {
-        width: 100%;
+        width: 70%;
     }
     """
 
@@ -60,20 +60,16 @@ class AddBookElement(Widget):
         yield Button("Add", id="add_book_button", variant="primary")
 
 
-class BooksView(Widget):
+class BooksView(Widget, can_focus=False):
     """Unfocusable container holding a scrollable vertical list of books."""
-
-    can_focus = False
 
     DEFAULT_CSS = """
     BooksView {
         width: 100%;
         height: 100%;
+        
     }
 
-    /* A scrollable grid: fixed to 3 columns, rows as needed.
-       The view contains a VerticalScroll with an inner Grid.
-       We control row count in Python to ensure a minimum of 2 rows. */
     BooksView > VerticalScroll {
         width: 100%;
         height: 100%;
@@ -81,14 +77,9 @@ class BooksView(Widget):
     }
 
     BooksView > VerticalScroll > Grid {
-        /* Use basic grid settings without a fixed column template so the
-           Python layout logic (mounting items into the Grid) determines
-           how many items appear per row. Use a numeric row size (required).
-           Adjust this number if the element heights change. */
-        display: grid;
-        grid-auto-flow: row;
-        grid-auto-rows: 5;
-        gap: 1 1;
+        border: solid $accent;
+        grid-size: 3 3;
+        
         width: 100%;
     }
     """
@@ -114,19 +105,21 @@ class BooksView(Widget):
         # Normalize incoming books into a list of titles.
         titles: list[str] = []
         for book in books or []:
-            titles.append(getattr(book, "title", None) or getattr(book, "name", None) or str(book))
+            titles.append(
+                getattr(book, "title", None) or getattr(book, "name", None) or str(book)
+            )
 
         columns = 3
-        rows = max(2, (len(titles) + columns - 1) // columns)
+        rows = 3
         total_cells = rows * columns
 
         # Mount book elements in order (left-to-right, top-to-bottom).
         for title in titles:
-            grid.mount(BookElement(book_title=title))
+            await grid.mount(BookElement(book_title=title))
 
         # Fill remaining cells with AddBookElement instances (no duplicate ids).
         for _ in range(total_cells - len(titles)):
-            grid.mount(AddBookElement())
+            await grid.mount(AddBookElement())
 
     async def add_book(self, book_title: str) -> None:
         """Insert a new book at the start of the list by rebuilding the grid.
