@@ -20,6 +20,17 @@ class BookEditWidget(Widget):
         padding: 1 1;
         height: auto;
     }
+    BookEditWidget > Horizontal#buttons {
+        height: 4;
+        align-vertical: bottom;
+        padding-top: 1;
+    }
+    BookEditWidget > Input#title_input {
+        height: 3;
+        }
+    BookEditWidget > TextArea {
+        height: 1fr;
+    }
     """
 
     book_title: reactive[str] = reactive("")
@@ -32,8 +43,11 @@ class BookEditWidget(Widget):
     def compose(self) -> ComposeResult:
         yield Static("Title:", id="title_label")
         yield Input(
-            value=self.book_title, placeholder="Enter book title...", id="title_input",
+            value=self.book_title,
+            placeholder="Enter book title...",
+            id="title_input",
         )
+        yield TextArea(tooltip="Write markdown here...", id="markdown_area")
         yield Horizontal(
             Button("OK", id="ok", variant="primary"),
             Button("Cancel", id="cancel", variant="error"),
@@ -71,7 +85,8 @@ class TOCEditScreen(Screen):
     DEFAULT_CSS = """
     TOCEditScreen {
         
-    }"""
+    }
+    """
 
     BINDINGS: list[tuple[str, str, str]] = []
 
@@ -86,11 +101,8 @@ class TOCEditScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Vertical(
-            BookEditWidget(id="book_edit", book_title=self.initial_title),
-            TextArea(tooltip="Write markdown here...", id="markdown_area", expand=True),
-            id="main",
-        )
+        yield BookEditWidget(id="book_edit", book_title=self.initial_title)
+
         yield Footer()
 
     def on_mount(self) -> None:
