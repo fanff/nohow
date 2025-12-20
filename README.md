@@ -1,18 +1,17 @@
-Tool for faster knowledge learning ;
-Essentially it is fed with the summary of a book, structured like chaptering & subchaptering,
-and user use the tool, fed it with a chaptering of a book about what ever subject,
-the user can click on any chapter and see a "one shot generation by AI about the chapter" , in a chat conversation with ai,
-any message given from now on refer to the current conversation flow and therefore to the selected chapter,
-User is mainly trying to understand the chapter and can ask question ,
-Ai is acting as a learning assistant to explain concept, answer question etc...
-Components ,
-Database :
-Books -> Chaptering tree -> conversation for each leaf of the chaptering tree
-Front end :
-Screen with the chaptering editor, like a tree with + node + branch, each node is a string "chapter name" + ( short descriptions ?) , user edit the chaptering manually to start with,
-Importing markdown seems achievable to extract chaptering out of it,
-Screen with a bread crumb of the current chaptering and chapter title, + conversation .
-( NOT )Screen with a chaptering view only and details about what conversation "hang" for each chapter
-Prompt engineering :
-A prompt for "expanding" a subchapter, first time user opens it
-A prompt for generally chatting with the current chapter of the book, (like a conversation seeded with the content + prompt + user question => answer )
+# Outil pour un apprentissage plus rapide
+
+Cet outil est conçu pour accélérer l'apprentissage en utilisant des résumés de livres structurés en chapitres et sous-chapitres. L'utilisateur peut alimenter l'outil avec la structure d'un livre sur n'importe quel sujet. En cliquant sur un chapitre, l'utilisateur peut voir une "génération unique par IA" concernant ce chapitre, dans une conversation avec l'IA. Chaque message se réfère au flux de conversation actuel et donc au chapitre sélectionné. L'utilisateur cherche principalement à comprendre le chapitre et peut poser des questions. L'IA agit comme un assistant d'apprentissage pour expliquer des concepts et répondre aux questions.
+
+## Composants
+
+### Base de données
+- Livres -> Arbre de chapitres -> Conversation pour chaque feuille de l'arbre des chapitres
+
+### Frontend
+- Écran avec un éditeur de chapitres, structuré comme un arbre avec des nœuds et des branches. Chaque nœud est une chaîne "nom du chapitre" + (descriptions courtes ?). L'utilisateur édite manuellement la structure des chapitres au départ.
+- Importation de markdown pour extraire la structure des chapitres.
+- Écran avec un fil d'Ariane du chapitre actuel et le titre du chapitre, + conversation.
+
+### Ingénierie des prompts
+- Un prompt pour "développer" un sous-chapitre, la première fois que l'utilisateur l'ouvre.
+- Un prompt pour discuter généralement avec le chapitre actuel du livre (comme une conversation amorcée avec le contenu + prompt + question de l'utilisateur => réponse).
