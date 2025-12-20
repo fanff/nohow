@@ -25,6 +25,14 @@ class BookElement(Widget):
     }
     """
 
+    class EditBook(Message):
+        """Message emitted when this BookElement is clicked to request editing."""
+
+        def __init__(self, sender: "BookElement", book_title: str) -> None:
+            # Ensure the message bubbles up so parent containers/screens can catch it.
+            super().__init__()
+            self.book_title = book_title
+
     book_title: reactive[str] = reactive("")
 
     def __init__(self, book_title: str = "", **kwargs) -> None:
@@ -33,37 +41,14 @@ class BookElement(Widget):
 
     def compose(self):
         yield Static(self.book_title, id="title")
-        # An Input mapped to the reactive `book_title` so the title is editable
-        # in-place if desired by future UI behavior.
-        yield Input(value=self.book_title, id="title_input")
 
     def watch_book_title(self, new_value: str) -> None:
         try:
             title = self.query_one("#title", Static)
         except NoMatches:
             title = None
-        try:
-            input_ = self.query_one("#title_input", Input)
-        except NoMatches:
-            input_ = None
-
-        if title is not None:
+        else:
             title.update(new_value)
-
-        if input_ is not None:
-            try:
-                input_.value = new_value
-            except Exception:
-                # Be defensive if the input doesn't expose value assignment
-                pass
-
-    class EditBook(Message):
-        """Message emitted when this BookElement is clicked to request editing."""
-
-        def __init__(self, sender: "BookElement", book_title: str) -> None:
-            # Ensure the message bubbles up so parent containers/screens can catch it.
-            super().__init__(sender, bubble=True)
-            self.book_title = book_title
 
     def on_click(self, event) -> None:
         """Handle clicks on this widget and emit an EditBook message."""
@@ -136,7 +121,7 @@ class BooksView(Widget, can_focus=False):
         - Minimum rows = 2
         - Fill remaining cells with AddBookElement instances so the grid is always full.
         """
-        scroll = self.query_one("#books_scroll", VerticalScroll)
+        # scroll = self.query_one("#books_scroll", VerticalScroll)
         grid = self.query_one("#books_grid", Grid)
         await grid.remove_children()
 
@@ -152,7 +137,7 @@ class BooksView(Widget, can_focus=False):
         total_cells = rows * columns
 
         # Mount book elements in order (left-to-right, top-to-bottom).
-        for title in titles:
+        for title in titles[:total_cells]:
             await grid.mount(BookElement(book_title=title))
 
         # Fill remaining cells with AddBookElement instances (no duplicate ids).
@@ -246,7 +231,9 @@ class BooksView(Widget, can_focus=False):
                     import asyncio
 
                     asyncio.create_task(
-                        self.app.push_screen(TOCEditScreen(initial_title=message.book_title))
+                        self.app.push_screen(
+                            TOCEditScreen(initial_title=message.book_title)
+                        )
                     )
                 except Exception:
                     pass
