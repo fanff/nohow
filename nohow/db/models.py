@@ -14,7 +14,6 @@ class Book(Base):
 
     conversations = relationship(
         "Conversation",
-        back_populates="book",
         cascade="all, delete-orphan",
     )
 
@@ -26,4 +25,3 @@ class Conversation(Base):
     content = Column(String, nullable=False)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
-    book = relationship("Book", back_populates="conversations")
