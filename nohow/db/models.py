@@ -12,7 +12,11 @@ class Book(Base):
     title = Column(String, nullable=False)
     toc = Column(Text, nullable=True)
 
-    conversations = relationship("Conversation", back_populates="book")
+    conversations = relationship(
+        "Conversation",
+        back_populates="book",
+        cascade="all, delete-orphan",
+    )
 
 
 class Conversation(Base):
@@ -20,5 +24,6 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True)
     content = Column(String, nullable=False)
-    chapter_id = Column(Integer, ForeignKey("chapters.id"))
+
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="conversations")
