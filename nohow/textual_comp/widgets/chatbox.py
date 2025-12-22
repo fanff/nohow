@@ -2,11 +2,11 @@ from __future__ import annotations
 import time
 
 
-from litellm.proxy.client.cli.commands.models import format_timestamp
 from nohow.prompts.utils import new_message_of_type
 import pyperclip
 from langchain.messages import AIMessage, HumanMessage, AnyMessage
 import re
+from nohow.utils import format_timestamp
 from textual.binding import Binding
 from textual.geometry import Size
 from textual.widget import Widget

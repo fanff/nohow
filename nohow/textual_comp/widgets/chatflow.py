@@ -5,7 +5,6 @@ from nohow.prompts.chap_gen import ChapterInputs, DummyStreamingRunnable, build_
 from nohow.prompts.utils import new_message_of_type
 from textual import on
 from typing import List
-from flake8.formatting.default import Default
 import json
 from nohow.mkdutils import TocTreeNode
 from dataclasses import dataclass
