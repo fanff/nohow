@@ -10,3 +10,5 @@ wheels/
 .venv
 .aider*
 .nohow.yml
+
+local.db
