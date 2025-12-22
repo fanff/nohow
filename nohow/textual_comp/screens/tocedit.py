@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json
+from nohow.mkdutils import extract_toc_tree
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -107,11 +109,15 @@ class TOCEditScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        # Not database-related; leaving as-is.
-        try:
-            self.query_one("#markdown_area", TextArea).focus()
-        except Exception:
-            pass
+
+        book_widget = self.query_one("#book_edit", BookEditWidget)
+        toc = self.query_one("#markdown_area", TextArea)
+        engine = setup_database()
+        with get_session(engine) as session:
+            book = session.query(Book).filter_by(id=self.book_id).one()
+            toc.text = book.toc or ""
+            book_widget.book_title = book.title or ""
+        toc.focus()
 
     def on_button_pressed(self, event) -> None:
         button_id = getattr(event.button, "id", None) or getattr(
@@ -120,26 +126,26 @@ class TOCEditScreen(Screen):
 
         if button_id == "ok":
             book_widget = self.query_one("#book_edit", BookEditWidget)
-            title = book_widget.book_title
-            toc = self.query_one("#markdown_area", TextArea).value
+            toc = self.query_one("#markdown_area", TextArea)
 
+            title = book_widget.book_title
+            toc_text = toc.text
+            toc_tree = extract_toc_tree(toc_text)
             engine = setup_database()
             session = get_session(engine)
             try:
                 book = session.query(Book).filter_by(id=self.book_id).one()
                 book.title = title
-                book.toc = toc
+                book.toc = toc_text
+                book.toc_tree = json.dumps(toc_tree.to_json())
                 session.add(book)
                 session.commit()
             finally:
                 session.close()
 
-            self.result = {"book_id": self.book_id, "title": title, "toc": toc}
+            self.result = {"book_id": self.book_id, "title": title, "toc": toc_text}
             self.app.pop_screen()
 
         elif button_id == "cancel":
             self.result = None
-            try:
-                self.app.pop_screen()
-            except Exception:
-                pass
+            self.app.pop_screen()

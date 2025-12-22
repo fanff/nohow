@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List, Sequence
+from typing import Iterable, Iterator, Optional, Sequence, Tuple, List
 
 
 @dataclass(slots=True)
@@ -17,12 +18,15 @@ class TocNode:
 
     title: str
     level: int
+    index: List[int]
     line: int
     end_line: int | None = None
     children: List["TocNode"] = field(default_factory=list)
 
 
-def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -> List[TocNode]:
+def _extract_toc_(
+    markdown: str, *, min_level: int = 1, max_level: int = 6
+) -> List[TocNode]:
     """Extract a TOC tree from a Markdown string.
 
     This parses ATX-style headings only:
@@ -49,7 +53,9 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
         If no such heading exists, the end is the last line of the document.
     """
     if min_level < 1 or max_level > 6 or min_level > max_level:
-        raise ValueError("min_level/max_level must satisfy 1 <= min_level <= max_level <= 6")
+        raise ValueError(
+            "min_level/max_level must satisfy 1 <= min_level <= max_level <= 6"
+        )
 
     total_lines = markdown.count("\n") + 1 if markdown else 0
 
@@ -112,7 +118,10 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
             rest = rest[: i + 1].rstrip()
 
         title = rest
-        node = TocNode(title=title, level=level, line=line_no, end_line=None)
+        index = 0
+        node = TocNode(
+            title=title, index=[0], level=level, line=line_no, end_line=None
+        )
         ordered_nodes.append(node)
 
         # Pop until we find a parent with lower level.
@@ -142,6 +151,115 @@ def extract_toc_tree(markdown: str, *, min_level: int = 1, max_level: int = 6) -
     return roots
 
 
+@dataclass()
+class TocTreeNode:
+    key: str
+
+    level: int
+    index: List[int]
+    title: str
+    start_line: int
+    end_line: int
+
+    children: Tuple["TocTreeNode", ...] = field(default_factory=tuple)
+
+    def preorder(self) -> Iterator["TocTreeNode"]:
+        yield self
+        for c in self.children:
+            yield from c.preorder()
+
+    def conversation_key(self) -> str:
+        return ".".join(str(i) for i in self.index)
+
+    def flatten_preorder(self) -> List[tuple[int, str, int, int]]:
+        return [(n.level, n.title, n.start_line, n.end_line) for n in self.preorder()]
+
+    def topology_signature(self) -> Tuple[int, ...]:
+        """
+        A simple, stable "shape" signature: preorder list of child-counts.
+        This changes if and only if the branching structure changes.
+        """
+        return tuple(len(n.children) for n in self.preorder())
+
+    def topology_sexpr(self) -> str:
+        """
+        Another shape signature (often easier to debug):
+        parentheses encoding of the tree shape.
+        Example: a root with two leaves => "(()())"
+        """
+
+        def rec(n: TocTreeNode) -> str:
+            return "(" + "".join(rec(c) for c in n.children) + ")"
+
+        return rec(self)
+
+    def to_json(self) -> dict:
+        return {
+            "key": self.key,
+            "level": self.level,
+            "index": self.index,
+            "title": self.title,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "children": [c.to_json() for c in self.children],
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "TocTreeNode":
+        return cls(
+            key=data["key"],
+            level=data["level"],
+            index=data["index"],
+            title=data["title"],
+            start_line=data["start_line"],
+            end_line=data["end_line"],
+            children=tuple(cls.from_json(c) for c in data.get("children", [])),
+        )
+
+
+def to_tree(nodes: Sequence["TocNode"]) -> TocTreeNode:
+    def convert(n: "TocNode") -> TocTreeNode:
+        if n.end_line is None:
+            raise ValueError("TocNode.end_line is not set.")
+        # Key choice matters; see section 3.
+        key = f"{n.level}:{n.title}"  # placeholder
+        for child_idx, c in enumerate(n.children):
+            # assert isinstance(c, TocTreeNode)
+            c.index = n.index + [child_idx]
+        all_children = [convert(c) for c in n.children]
+        return TocTreeNode(
+            key=key,
+            level=n.level,
+            index=n.index,
+            title=n.title,
+            start_line=n.line,
+            end_line=n.end_line,
+            children=tuple(all_children),
+        )
+
+    children = []
+    for nodex_idx, n in enumerate(nodes):
+        n.index = [nodex_idx]
+        children.append(convert(n))
+
+    # Compute a reasonable span for the synthetic root
+    if children:
+        start = min(c.start_line for c in children)
+        end = max(c.end_line for c in children)
+    else:
+        start = end = 0
+
+    return TocTreeNode(
+        key="__root__",
+        level=0,
+        index=[0],
+        title="ROOT",
+        start_line=start,
+        end_line=end,
+        children=tuple(children),
+    )
+
+
 def flatten_toc(toc: Sequence[TocNode]) -> List[tuple[int, str, int, int]]:
     """Flatten a TOC tree into a list of (level, title, start_line, end_line) tuples (preorder)."""
     out: List[tuple[int, str, int, int]] = []
@@ -149,9 +267,17 @@ def flatten_toc(toc: Sequence[TocNode]) -> List[tuple[int, str, int, int]]:
     def walk(nodes: Sequence[TocNode]) -> None:
         for n in nodes:
             if n.end_line is None:
-                raise ValueError("TocNode.end_line is not set. Did you build the TOC via extract_toc_tree()?")
+                raise ValueError(
+                    "TocNode.end_line is not set. Did you build the TOC via extract_toc_tree()?"
+                )
             out.append((n.level, n.title, n.line, n.end_line))
             walk(n.children)
 
     walk(toc)
     return out
+
+
+def extract_toc_tree(markdown: str) -> TocTreeNode:
+    toc = _extract_toc_(markdown)
+    toctree = to_tree(toc)
+    return toctree

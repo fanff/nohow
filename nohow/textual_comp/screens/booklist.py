@@ -25,6 +25,11 @@ class BookListScreen(Screen):
         """Load books from the database and pass them to the BooksView."""
         self.run_worker(self._load_books(), exclusive=True)
 
+    def _on_screen_resume(self):
+        super()._on_screen_resume()
+        """Reload books when the screen gains focus."""
+        self.run_worker(self._load_books(), exclusive=True)
+
     async def _load_books(self) -> None:
         books = []
 
@@ -48,4 +53,5 @@ class BookListScreen(Screen):
             books = []
 
         books_view = self.query_one("#books_view", BooksView)
-        books_view.set_books(books)
+
+        await books_view.set_books(books)

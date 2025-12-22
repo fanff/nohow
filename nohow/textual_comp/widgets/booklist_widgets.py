@@ -6,6 +6,8 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Static, Input
+from nohow.db.models import Book
+from nohow.db.utils import get_session, setup_database
 
 
 class BookElement(Widget):
@@ -25,10 +27,23 @@ class BookElement(Widget):
     }
     """
 
+    class ChatOnBook(Message):
+        """Message emitted when this BookElement is clicked to request chatting."""
+
+        def __init__(
+            self, sender: "BookElement", book_title: str, book_id: int | None
+        ) -> None:
+            # Ensure the message bubbles up so parent containers/screens can catch it.
+            super().__init__()
+            self.book_title = book_title
+            self.book_id = book_id
+
     class EditBook(Message):
         """Message emitted when this BookElement is clicked to request editing."""
 
-        def __init__(self, sender: "BookElement", book_title: str, book_id: int | None) -> None:
+        def __init__(
+            self, sender: "BookElement", book_title: str, book_id: int | None
+        ) -> None:
             # Ensure the message bubbles up so parent containers/screens can catch it.
             super().__init__()
             self.book_title = book_title
@@ -36,7 +51,9 @@ class BookElement(Widget):
 
     book_title: reactive[str] = reactive("")
 
-    def __init__(self, book_title: str = "", book_id: int | None = None, **kwargs) -> None:
+    def __init__(
+        self, book_title: str = "", book_id: int | None = None, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.book_title = book_title
         self.book_id = book_id
@@ -52,15 +69,18 @@ class BookElement(Widget):
         else:
             title.update(new_value)
 
-    def on_click(self, event) -> None:
+    from textual.events import Click
+
+    def on_click(self, event: Click) -> None:
         """Handle clicks on this widget and emit an EditBook message."""
-        # Prevent other handlers from also responding to this click.
-        try:
-            event.stop()
-        except Exception:
-            pass
-        # Post a message that bubbles up to parent widgets / app.
-        self.post_message(self.EditBook(self, self.book_title, self.book_id))
+        event.stop()  # Stop further propagation.
+
+        if event.button == 1:  # Left click only
+            self.post_message(self.ChatOnBook(self, self.book_title, self.book_id))
+
+        else:
+            # Post a message that bubbles up to parent widgets / app.
+            self.post_message(self.EditBook(self, self.book_title, self.book_id))
 
 
 class AddBookElement(Widget):
@@ -117,10 +137,7 @@ class BooksView(Widget, can_focus=False):
 
     async def set_books(self, books) -> None:
         """Receive the current list of books from the DB and populate the grid.
-
-        Layout rules:
-        - Fixed columns = 3
-        - Minimum rows = 2
+        grid limited to 3 columns and 3 rows (9 total).
         - Fill remaining cells with AddBookElement instances so the grid is always full.
         """
         # scroll = self.query_one("#books_scroll", VerticalScroll)
@@ -135,7 +152,9 @@ class BooksView(Widget, can_focus=False):
                 continue
 
             book_id = getattr(book, "id", None)
-            title = getattr(book, "title", None) or getattr(book, "name", None) or str(book)
+            title = (
+                getattr(book, "title", None) or getattr(book, "name", None) or str(book)
+            )
             items.append((book_id, title))
 
         columns = 3
@@ -183,37 +202,16 @@ class BooksView(Widget, can_focus=False):
         """Create a new book in the database and insert it into the list."""
         default_title = "New Book"
 
-        created_book = None
-        try:
-            from nohow.db.models import Book
-            from nohow.db.utils import get_session, setup_database
+        engine = setup_database()
+        with get_session(engine) as session:
 
-            engine = setup_database()
-            session = get_session(engine)
-
-            try:
-                created_book = Book(title=default_title)
-                session.add(created_book)
-                session.commit()
-                try:
-                    session.refresh(created_book)
-                except Exception:
-                    pass
-            finally:
-                try:
-                    session.close()
-                except Exception:
-                    pass
-
-        except Exception:
-            created_book = None
+            created_book = Book(title=default_title, toc="")
+            session.add(created_book)
+            session.commit()
+            session.refresh(created_book)
 
         # Update UI (we at least insert the title we attempted to create).
-        title = (
-            getattr(created_book, "title", None)
-            or getattr(created_book, "name", None)
-            or default_title
-        )
+        title = created_book.title
         await self.add_book(title)
 
         # Prepare to jump to another screen later.
@@ -221,28 +219,19 @@ class BooksView(Widget, can_focus=False):
 
     def on_book_element_edit_book(self, message: BookElement.EditBook) -> None:
         """Handle EditBook messages from BookElement and push an edit screen."""
-        try:
-            # Import locally to avoid top-level import cycles.
-            from nohow.textual_comp.screens.tocedit import TOCEditScreen
+        # Import locally to avoid top-level import cycles.
+        from nohow.textual_comp.screens.tocedit import TOCEditScreen
 
-            # Attempt to push the TOC edit screen on top. Different textual
-            # versions expose push_screen as sync or async; try sync first,
-            # fall back to scheduling an async task if necessary.
-            try:
-                # Pass the clicked book's title to the edit screen so it can
-                # pre-populate the editor.
-                self.app.push_screen(TOCEditScreen(initial_title=message.book_title))
-            except Exception:
-                try:
-                    import asyncio
+        self.app.push_screen(
+            TOCEditScreen(book_id=message.book_id, initial_title=message.book_title)
+        )
 
-                    asyncio.create_task(
-                        self.app.push_screen(
-                            TOCEditScreen(initial_title=message.book_title)
-                        )
-                    )
-                except Exception:
-                    pass
-        except Exception:
-            # If anything goes wrong (import or push), don't crash the UI.
-            pass
+    async def on_book_element_chat_on_book(
+        self, message: BookElement.ChatOnBook
+    ) -> None:
+        """Handle ChatOnBook messages from BookElement and push a chat screen."""
+        # Import locally to avoid top-level import cycles.
+        # await self.app.pop_screen()
+        from nohow.textual_comp.screens.tocreader import TOCReaderScreen
+
+        await self.app.push_screen(TOCReaderScreen(message.book_id))
