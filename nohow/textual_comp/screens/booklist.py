@@ -3,7 +3,7 @@ from typing import List
 
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Footer, Header
+from textual.widgets import Footer, Header, Label, Rule
 from nohow.db.utils import get_session, setup_database
 from nohow.db.models import Book
 from nohow.textual_comp.widgets.booklist_widgets import BooksView
@@ -16,6 +16,17 @@ class BookListScreen(Screen):
         ("j", "focus_next", "Focus next"),
         ("k", "focus_previous", "Focus previous"),
     ]
+    DEFAULT_CSS = """
+    BookListScreen {
+        align: center top;
+    }
+    
+    #books_view {
+        margin-top: 3;
+        height: 1fr;
+        width: 70%;
+    }
+    """
 
     def compose(self) -> ComposeResult:
         """Compose the UI components."""
@@ -37,7 +48,7 @@ class BookListScreen(Screen):
 
         engine = setup_database()
         with get_session(engine) as session:
-            books:List[Book] = session.query(Book).all()
+            books: List[Book] = session.query(Book).all()
 
         books_view = self.query_one("#books_view", BooksView)
 

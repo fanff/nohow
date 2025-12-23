@@ -3,12 +3,12 @@ from textual import on
 from regex import W
 from typing import List
 
-from textual.containers import VerticalScroll, Grid
+from textual.containers import VerticalScroll, Grid, Horizontal
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Button, Static, Input, ListView, ListItem
+from textual.widgets import Button, Static, Input, ListView, ListItem, Label
 from nohow.db.models import Book
 from nohow.db.utils import get_session, setup_database
 from textual.events import Click, DescendantFocus, DescendantBlur
@@ -19,16 +19,30 @@ class BookElement(Widget, can_focus_children=True):
 
     DEFAULT_CSS = """
     BookElement {
+        layout: horizontal;
         width: 100%;
         height: auto;
         border-left: solid $primary;
         padding: 1 1;
-        margin: 1 1;
-
         &.-focused {
             border-left: thick $primary;
             background: $boost;
         }
+    }
+
+    #title {
+        align: left middle;
+    }
+
+    #buttons {
+        align: right middle; 
+        height: auto;  
+    }
+
+    #edit_button, #chat_button {
+        align: right middle;
+        
+        width: 8;
     }
 
     """
@@ -67,9 +81,10 @@ class BookElement(Widget, can_focus_children=True):
         self.book_id = book_id
 
     def compose(self):
-        yield Static(self.book_title, id="title")
-        yield Button("Edit", id="edit_button", variant="primary")
-        yield Button("Chat", id="chat_button", variant="success")
+        yield Label(self.book_title, id="title", shrink=True)
+        with Horizontal(id="buttons"):
+            yield Button("Edit", id="edit_button", variant="primary", compact=True)
+            yield Button("Chat", id="chat_button", variant="success", compact=True)
 
     def watch_book_title(self, new_value: str) -> None:
         try:
@@ -134,6 +149,8 @@ class BooksView(Widget, can_focus=False):
     BooksView {
         width: 100%;
         height: 100%;
+        align: center top;
+        content-align: center top;
         
     }
 
@@ -144,7 +161,8 @@ class BooksView(Widget, can_focus=False):
 
     #add_book_element {
         height: 5;
-        width: 100%;
+        width: 30%;
+        align: center middle;
     }
     
     """
