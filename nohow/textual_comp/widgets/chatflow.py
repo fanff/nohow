@@ -36,7 +36,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from nohow.db.models import Book, Convo, Chapter, update_convo_content
-from nohow.db.utils import get_session, setup_database
+from nohow.db.utils import get_session
 from nohow.textual_comp.widgets.chatbox import ChatInputArea, ChatMessage
 from shortuuid import ShortUUID
 
@@ -149,7 +149,7 @@ class ChatFlowWidget(Widget):
         self.chat_session = make_chat_session(
             llm=llm, chapter_content=self.chapter_content
         )
-        update_convo_content(
+        update_convo_content(self.app,
             convo_id=self.convo_id,
             new_content=json.dumps(self.chat_session.serialize_conversation()),
         )
@@ -234,7 +234,7 @@ class ChatFlowWidget(Widget):
                     self.action_last_message()
 
             await ai_message_chatbox.finalize_message()
-            update_convo_content(
+            update_convo_content(self.app,
                 convo_id=self.convo_id,
                 new_content=json.dumps(self.chat_session.serialize_conversation()),
             )
@@ -361,8 +361,8 @@ class ChapterView(Widget):
         self.chapter_content
         self.book_id
         self.toc_address
-        engine = setup_database()
-        with get_session(engine) as session:
+        
+        with get_session(self.app.get_db()) as session:
             # find if chapter already exists
             existing_chapter = (
                 session.query(Chapter)

@@ -46,7 +46,7 @@ class BookListScreen(Screen):
     async def _load_books(self) -> None:
         books = []
 
-        engine = setup_database()
+        engine = self.app.get_db()
         with get_session(engine) as session:
             books: List[Book] = session.query(Book).all()
 

@@ -82,8 +82,8 @@ class TOCReaderScreen(Screen):
 
     async def _refresh_from_db(self) -> None:
 
-        engine = setup_database()
-        with get_session(engine) as session:
+        
+        with get_session(self.app.get_db()) as session:
             book = session.query(Book).filter_by(id=self.book_id).one()
             all_chapters: List[Chapter] = list(book.chapter_contents)
             all_convo: List[Convo] = list(book.conversations)
@@ -125,8 +125,8 @@ class TOCReaderScreen(Screen):
             chat_area_switcher.add_content(chat_widget, id=widget_id)
 
     def _create_conversation(self, toc_address: str) -> Convo:
-        engine = setup_database()
-        with get_session(engine) as session:
+        
+        with get_session(self.app.get_db()) as session:
             book = session.query(Book).filter_by(id=self.book_id).one()
             new_convo = Convo(
                 content="",

@@ -53,11 +53,10 @@ class Convo(Base):
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
 
 
-def update_convo_content(convo_id: int, new_content: str) -> None:
+def update_convo_content(app, convo_id: int, new_content: str) -> None:
     from nohow.db.utils import get_session
-    from nohow.db.utils import setup_database
 
-    engine = setup_database()
+    engine =app.get_db()
     with get_session(engine) as session:
         convo = session.query(Convo).filter_by(id=convo_id).one()
         convo.content = new_content

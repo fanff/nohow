@@ -104,7 +104,7 @@ class TOCEditScreen(Screen):
 
         book_widget = self.query_one("#book_edit", BookEditWidget)
         toc = self.query_one("#markdown_area", TextArea)
-        engine = setup_database()
+        engine = self.app.get_db()
         with get_session(engine) as session:
             book = session.query(Book).filter_by(id=self.book_id).one()
             toc.text = book.toc
@@ -123,8 +123,7 @@ class TOCEditScreen(Screen):
             title = book_widget.book_title
             toc_text = toc.text
             toc_tree = extract_toc_tree(toc_text)
-            engine = setup_database()
-            with get_session(engine) as session:
+            with get_session(self.app.get_db()) as session:
                 book = session.query(Book).filter_by(id=self.book_id).one()
                 book.title = title
                 book.toc = toc_text

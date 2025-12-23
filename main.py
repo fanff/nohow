@@ -1,15 +1,19 @@
 from __future__ import annotations
+from sqlalchemy import create_engine
 import yaml
 from pathlib import Path
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
+from nohow.db.utils import setup_database
 from nohow.prompts.utils import (
     new_message_of_type,
 )  # noqua, this force slow import early
 from typing import Optional
 
+from platformdirs import user_data_dir
+from pathlib import Path
 from textual.app import App
 from nohow.textual_comp.screens.tocedit import TOCEditScreen
 from nohow.textual_comp.screens.tocreader import TOCReaderScreen
@@ -54,17 +58,53 @@ class NohowApp(App):
 
     TITLE = "Nohow"
 
-    def __init__(self, context: Optional[AppContext] = None) -> None:
+    def __init__(self,cfg_dir:Path, context: Optional[AppContext] = None) -> None:
+
+        yaml_config = cfg_dir / ".nohow.yml"
+        if not yaml_config.exists():
+            # create default config file
+            with open(str(yaml_config), "w", encoding="utf-8") as f:
+                yaml.safe_dump(DEFAULT_CONFIG, f)
+
+        self.db_path = cfg_dir / "nohow.db"
+        if not self.db_path.exists():
+            # create empty db file
+            setup_database(db_url=f"sqlite:///{self.db_path}")
+
+        self.app_context = context or AppContext.from_yaml(yaml_config)
         super().__init__()
 
-        self.app_context = context or AppContext.from_yaml(Path(".nohow.yml"))
+    def get_db(self):
+        db_url = f"sqlite:///{self.db_path}" # str(self.db_path)
+        engine = create_engine(db_url)
+        return engine
+    
 
     def on_mount(self) -> None:
         self.push_screen(BookListScreen())
 
 
-def main() -> None:
-    NohowApp().run()
+def get_nohow_dir() -> Path:
+
+    # returns e.g. ~/.local/share/NoHow or C:\Users\You\AppData\Local\NoHow
+    p = Path(user_data_dir("nohow"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def main() -> None:        
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config-dir", help="Path to NoHow config directory", required=False, default="")
+    args = parser.parse_args()
+    
+    if args.config_dir == "":
+        cfg_dir = get_nohow_dir()
+    else:
+        cfg_dir = Path(args.config_dir)
+    
+    NohowApp(cfg_dir=cfg_dir).run()
 
 
 if __name__ == "__main__":

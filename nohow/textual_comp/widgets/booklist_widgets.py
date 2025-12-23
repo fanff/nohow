@@ -10,7 +10,7 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Static, Input, ListView, ListItem, Label
 from nohow.db.models import Book
-from nohow.db.utils import get_session, setup_database
+from nohow.db.utils import get_session
 from textual.events import Click, DescendantFocus, DescendantBlur
 
 
@@ -210,8 +210,8 @@ class BooksView(Widget, can_focus=False):
         """Create a new book in the database and insert it into the list."""
         default_title = "New Book"
 
-        engine = setup_database()
-        with get_session(engine) as session:
+        
+        with get_session(self.app.get_db()) as session:
 
             created_book = Book(title=default_title, toc="")
             session.add(created_book)
