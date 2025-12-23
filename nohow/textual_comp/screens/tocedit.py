@@ -75,17 +75,6 @@ class BookEditWidget(Widget):
 
 
 class TOCEditScreen(Screen):
-    """Écran d’édition de la table des matières.
-
-    When OK is pressed:
-    - load Book by id
-    - replace title and toc
-    - commit
-    - expose result and pop screen
-
-    When Cancel is pressed:
-    - set result to None and pop screen
-    """
 
     DEFAULT_CSS = """
     TOCEditScreen {
@@ -97,9 +86,12 @@ class TOCEditScreen(Screen):
 
     content: reactive[str] = reactive("")
 
-    def __init__(self, book_id: int, initial_title: str = "", **kwargs) -> None:
+    def __init__(
+        self, book_id: int, screen_caller, initial_title: str = "", **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.book_id = book_id
+        self.screen_caller = screen_caller
         self.initial_title = initial_title
         self.result = None
 
@@ -115,11 +107,11 @@ class TOCEditScreen(Screen):
         engine = setup_database()
         with get_session(engine) as session:
             book = session.query(Book).filter_by(id=self.book_id).one()
-            toc.text = book.toc or ""
-            book_widget.book_title = book.title or ""
+            toc.text = book.toc
+            # book_widget.book_title = book.title
         toc.focus()
 
-    def on_button_pressed(self, event) -> None:
+    async def on_button_pressed(self, event) -> None:
         button_id = getattr(event.button, "id", None) or getattr(
             event.button, "label", None
         )
@@ -132,18 +124,15 @@ class TOCEditScreen(Screen):
             toc_text = toc.text
             toc_tree = extract_toc_tree(toc_text)
             engine = setup_database()
-            session = get_session(engine)
-            try:
+            with get_session(engine) as session:
                 book = session.query(Book).filter_by(id=self.book_id).one()
                 book.title = title
                 book.toc = toc_text
                 book.toc_tree = json.dumps(toc_tree.to_json())
                 session.add(book)
                 session.commit()
-            finally:
-                session.close()
 
-            self.result = {"book_id": self.book_id, "title": title, "toc": toc_text}
+            self.screen_caller.update_book_content(book_title=title)
             self.app.pop_screen()
 
         elif button_id == "cancel":

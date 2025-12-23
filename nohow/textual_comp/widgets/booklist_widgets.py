@@ -1,30 +1,36 @@
 from __future__ import annotations
+from textual import on
+from regex import W
+from typing import List
 
 from textual.containers import VerticalScroll, Grid
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Button, Static, Input
+from textual.widgets import Button, Static, Input, ListView, ListItem
 from nohow.db.models import Book
 from nohow.db.utils import get_session, setup_database
+from textual.events import Click, DescendantFocus, DescendantBlur
 
 
-class BookElement(Widget):
+class BookElement(Widget, can_focus_children=True):
     """A fixed-size widget representing a single book entry."""
 
     DEFAULT_CSS = """
     BookElement {
         width: 100%;
-        height: 100%;
-        border: solid $primary;
+        height: auto;
+        border-left: solid $primary;
         padding: 1 1;
         margin: 1 1;
+
+        &.-focused {
+            border-left: thick $primary;
+            background: $boost;
+        }
     }
 
-    BookElement:hover {
-        background: $accent;
-    }
     """
 
     class ChatOnBook(Message):
@@ -37,6 +43,7 @@ class BookElement(Widget):
             super().__init__()
             self.book_title = book_title
             self.book_id = book_id
+            self.sender = sender
 
     class EditBook(Message):
         """Message emitted when this BookElement is clicked to request editing."""
@@ -48,6 +55,7 @@ class BookElement(Widget):
             super().__init__()
             self.book_title = book_title
             self.book_id = book_id
+            self.sender = sender
 
     book_title: reactive[str] = reactive("")
 
@@ -60,6 +68,8 @@ class BookElement(Widget):
 
     def compose(self):
         yield Static(self.book_title, id="title")
+        yield Button("Edit", id="edit_button", variant="primary")
+        yield Button("Chat", id="chat_button", variant="success")
 
     def watch_book_title(self, new_value: str) -> None:
         try:
@@ -69,18 +79,31 @@ class BookElement(Widget):
         else:
             title.update(new_value)
 
-    from textual.events import Click
+    @on(DescendantFocus)
+    def on_descendant_focus(self, event: DescendantFocus) -> None:
+        """Handle focus events from child widgets to highlight this element."""
+        self.add_class("-focused")
 
-    def on_click(self, event: Click) -> None:
+    @on(DescendantBlur)
+    def on_descendant_blur(self, event: DescendantBlur) -> None:
+        """Handle blur events from child widgets to remove highlight."""
+        self.remove_class("-focused")
+
+    @on(Button.Pressed, "#chat_button")
+    def on_chat_click(self, event: Button.Pressed) -> None:
         """Handle clicks on this widget and emit an EditBook message."""
         event.stop()  # Stop further propagation.
 
-        if event.button == 1:  # Left click only
-            self.post_message(self.ChatOnBook(self, self.book_title, self.book_id))
+        self.post_message(self.ChatOnBook(self, self.book_title, self.book_id))
 
-        else:
-            # Post a message that bubbles up to parent widgets / app.
-            self.post_message(self.EditBook(self, self.book_title, self.book_id))
+    @on(Button.Pressed, "#edit_button")
+    def on_edit_click(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.post_message(self.EditBook(self, self.book_title, self.book_id))
+
+    def update_book_content(self, book_title: str) -> None:
+        """Update the book title displayed in this widget."""
+        self.book_title = book_title
 
 
 class AddBookElement(Widget):
@@ -88,8 +111,7 @@ class AddBookElement(Widget):
 
     DEFAULT_CSS = """
     AddBookElement {
-        width: 100%;
-        height: 100%;
+        height: auto;
         
         padding: 1 1;
         margin: 1 1;
@@ -115,85 +137,53 @@ class BooksView(Widget, can_focus=False):
         
     }
 
-    BooksView > VerticalScroll {
+    #book_list_view {
+        height: 1fr;
         width: 100%;
-        height: 100%;
-        padding: 1;
     }
 
-    BooksView > VerticalScroll > Grid {
-        border: solid $accent;
-        grid-size: 3 3;
-        
+    #add_book_element {
+        height: 5;
         width: 100%;
     }
+    
     """
 
     def compose(self):
-        yield VerticalScroll(
-            Grid(id="books_grid"),
-            id="books_scroll",
-        )
 
-    async def set_books(self, books) -> None:
-        """Receive the current list of books from the DB and populate the grid.
-        grid limited to 3 columns and 3 rows (9 total).
-        - Fill remaining cells with AddBookElement instances so the grid is always full.
-        """
+        yield VerticalScroll(id="book_list_view")
+        yield AddBookElement(id="add_book_element")
+
+    async def set_books(self, books: List[Book]) -> None:
+        """Receive the current list of books from the DB and populate the List."""
         # scroll = self.query_one("#books_scroll", VerticalScroll)
-        grid = self.query_one("#books_grid", Grid)
-        await grid.remove_children()
+        grid = self.query_one("#book_list_view", VerticalScroll)
+        await grid.remove_children("*")
 
         # Normalize incoming books into (id, title) pairs.
         items: list[tuple[int | None, str]] = []
-        for book in books or []:
-            if isinstance(book, str):
-                items.append((None, book))
-                continue
+        for book in books:
 
-            book_id = getattr(book, "id", None)
-            title = (
-                getattr(book, "title", None) or getattr(book, "name", None) or str(book)
-            )
-            items.append((book_id, title))
+            book_id = int(book.id)
+            title = str(book.title)
 
-        columns = 3
-        rows = 3
-        total_cells = rows * columns
-
-        # Mount book elements in order (left-to-right, top-to-bottom).
-        for book_id, title in items[:total_cells]:
             await grid.mount(BookElement(book_title=title, book_id=book_id))
 
-        # Fill remaining cells with AddBookElement instances (no duplicate ids).
-        for _ in range(total_cells - len(items)):
-            await grid.mount(AddBookElement())
-
-    async def add_book(self, book_title: str) -> None:
+    async def add_book(self, book: Book) -> BookElement:
         """Insert a new book at the start of the list by rebuilding the grid.
 
         We collect existing book titles and rebuild the grid so the layout rules
         (3 columns, at least 2 rows) are preserved. This keeps logic simple and
         consistent across different numbers of books.
         """
-        grid = self.query_one("#books_grid", Grid)
+        grid = self.query_one("#book_list_view", VerticalScroll)
+        be = BookElement(book_title=book.title, book_id=book.id)
+        await grid.mount(be)
+        return be
 
-        # Collect existing book titles in order.
-        existing_titles = [
-            getattr(child, "book_title", None)
-            for child in grid.children
-            if isinstance(child, BookElement)
-        ]
-
-        # New book becomes first.
-        titles = [book_title] + existing_titles
-
-        await self.set_books(titles)
-
+    @on(Button.Pressed, "#add_book_button")
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle the Add button click from inside this widget."""
-        if event.button.id != "add_book_button":
-            return
 
         # Spawn a worker to create the book in the DB, then update the UI.
         self.run_worker(self._create_book_and_insert(), exclusive=True)
@@ -211,11 +201,19 @@ class BooksView(Widget, can_focus=False):
             session.refresh(created_book)
 
         # Update UI (we at least insert the title we attempted to create).
-        title = created_book.title
-        await self.add_book(title)
+        be = await self.add_book(created_book)
 
         # Prepare to jump to another screen later.
         # self.emit("action change screen somethin...")
+        from nohow.textual_comp.screens.tocedit import TOCEditScreen
+
+        self.app.push_screen(
+            TOCEditScreen(
+                book_id=created_book.id,
+                screen_caller=be,
+                initial_title=created_book.title,
+            )
+        )
 
     def on_book_element_edit_book(self, message: BookElement.EditBook) -> None:
         """Handle EditBook messages from BookElement and push an edit screen."""
@@ -223,7 +221,11 @@ class BooksView(Widget, can_focus=False):
         from nohow.textual_comp.screens.tocedit import TOCEditScreen
 
         self.app.push_screen(
-            TOCEditScreen(book_id=message.book_id, initial_title=message.book_title)
+            TOCEditScreen(
+                book_id=message.book_id,
+                screen_caller=message.sender,
+                initial_title=message.book_title,
+            )
         )
 
     async def on_book_element_chat_on_book(

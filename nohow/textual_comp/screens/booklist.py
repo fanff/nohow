@@ -1,9 +1,11 @@
 from __future__ import annotations
+from typing import List
 
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Footer, Header
-
+from nohow.db.utils import get_session, setup_database
+from nohow.db.models import Book
 from nohow.textual_comp.widgets.booklist_widgets import BooksView
 
 
@@ -33,24 +35,9 @@ class BookListScreen(Screen):
     async def _load_books(self) -> None:
         books = []
 
-        try:
-            from nohow.db.utils import get_session, setup_database
-            from nohow.db.models import Book
-
-            engine = setup_database()
-            session = get_session(engine)
-
-            try:
-                result = session.query(Book).all()
-                books = result or []
-            finally:
-                try:
-                    session.close()
-                except Exception:
-                    pass
-
-        except Exception:
-            books = []
+        engine = setup_database()
+        with get_session(engine) as session:
+            books:List[Book] = session.query(Book).all()
 
         books_view = self.query_one("#books_view", BooksView)
 

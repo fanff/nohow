@@ -61,11 +61,11 @@ class ChatFlowWidget(Widget):
             key="g",
             action="last_message",
             description="Focus Last Message",
-            key_display="^d",
+            key_display="g",
         ),
         Binding(
             key="i",
-            action="focus('chat_input_area')",
+            action="focus_input",
             description="Focus Input",
             key_display="i",
         ),
@@ -243,6 +243,11 @@ class ChatFlowWidget(Widget):
             self.action_last_message()
 
         self.run_worker(stream_in_background(), exclusive=True)
+
+    def action_focus_input(self) -> None:
+        """Focus the chat input area."""
+        chat_input_area = self.query_one("#chat_input_area", ChatInputArea)
+        chat_input_area.focus()
 
     def action_last_message(self) -> None:
         """Focus the last message of the chat"""
@@ -496,15 +501,8 @@ class ChatList(Widget):
     """
 
     BINDINGS = [
-        Binding(
-            "i",
-            action="focus('chat-input')",
-            description="Focus Input",
-            key_display="i",
-        ),
-        Binding("r", "rename_conversation", "Rename Chat", key_display="r"),
-        Binding("d", "delete_conversation", "Delete Chat", key_display="d"),
-        Binding("e", "export", "Export To Markdown", key_display="e"),
+        Binding("j", "cursor_down", "Cursor down", show=False),
+        Binding("k", "cursor_up", "Cursor up", show=False),
     ]
     COMPONENT_CLASSES = {"app-title", "app-subtitle"}
 
@@ -588,3 +586,13 @@ class ChatList(Widget):
                         )
         else:
             return []
+
+    def action_cursor_up(self) -> None:
+        """Move the cursor up in the chat list."""
+        ol = self.query_one("#cl-option-list", ListView)
+        ol.action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move the cursor down in the chat list."""
+        ol = self.query_one("#cl-option-list", ListView)
+        ol.action_cursor_down()

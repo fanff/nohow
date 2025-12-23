@@ -11,7 +11,8 @@ from nohow.prompts.utils import (
 from typing import Optional
 
 from textual.app import App
-
+from nohow.textual_comp.screens.tocedit import TOCEditScreen
+from nohow.textual_comp.screens.tocreader import TOCReaderScreen
 from nohow.textual_comp.screens.booklist import BookListScreen
 
 DEFAULT_CONFIG = {
