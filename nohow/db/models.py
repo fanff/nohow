@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 
+
 Base = declarative_base()
 
 
@@ -61,3 +62,18 @@ def update_convo_content(app, convo_id: int, new_content: str) -> None:
         convo = session.query(Convo).filter_by(id=convo_id).one()
         convo.content = new_content
         session.commit()
+
+
+
+def create_conversation(app, book_id: int, toc_address: str) -> Convo:
+    from nohow.db.utils import get_session
+    with get_session(app.get_db()) as session:
+        new_convo = Convo(
+            content="",
+            toc_address=toc_address,
+            book_id=book_id,
+        )
+        session.add(new_convo)
+        session.commit()
+        session.refresh(new_convo)
+    return new_convo

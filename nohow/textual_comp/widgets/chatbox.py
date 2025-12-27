@@ -15,10 +15,6 @@ from textual.widgets import TextArea, Button, Markdown
 from textual.message import Message
 from textual import on, events
 
-
-# from nohow.textual_comp.widgets.chatflow import ChatFlowWidget
-
-
 class ChatInputArea(TextArea):
     BINDINGS = [
         Binding(

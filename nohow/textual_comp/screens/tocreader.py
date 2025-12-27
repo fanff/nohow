@@ -7,7 +7,7 @@ from textual.screen import Screen
 
 from textual.widgets import Footer, Header, TextArea, Static, ContentSwitcher, Button
 
-from nohow.db.models import Book, Convo, Chapter
+from nohow.db.models import Book, Convo, Chapter, create_conversation
 from nohow.db.utils import get_session, setup_database
 from nohow.textual_comp.screens.tocedit import BookEditWidget
 from textual.containers import Horizontal
@@ -52,30 +52,30 @@ class TOCReaderScreen(Screen):
         super().__init__(**kwargs)
         self.book_id = book_id
         self.book: Book | None = None
+        self.w_contentswitcher: ContentSwitcher | None = None
 
     def compose(self):
         yield Header()
 
         with Horizontal(id="main_area"):
             yield ChatList(id="chat_list")
-            yield ContentSwitcher(id="chat_area_switcher")
-            # yield ChatFlowWidget(book_id=self.book_id, chapter_id=1, id="chat_area")
+            self.w_contentswitcher =  ContentSwitcher(id="chat_area_switcher")
+            yield self.w_contentswitcher
         yield Footer()
 
     @on(ChatList.ChatOpened)
     def on_chat_select(self, event: ChatList.ChatOpened) -> None:
-        chat_area_switcher = self.query_one("#chat_area_switcher", ContentSwitcher)
-        event.item
-        assert isinstance(event.item, ChatListItem)
+        assert isinstance(self.w_contentswitcher, ContentSwitcher)
+
         if event.item.is_title:
             toc_index = event.item.toc_index
             convo_id = f"convo_{toc_index.replace('.', '_')}"
-            chat_area_switcher.current = convo_id
+            self.w_contentswitcher.current = convo_id
         else:
             convo_id = (
                 f"convo_{event.item.toc_index.replace('.', '_')}{event.item.chat_id}"
             )
-            chat_area_switcher.current = convo_id
+            self.w_contentswitcher.current = convo_id
 
     def on_mount(self) -> None:
         self.run_worker(self._refresh_from_db(), exclusive=True)
@@ -95,7 +95,7 @@ class TOCReaderScreen(Screen):
         chat_list.load_conversation_list_items()
 
         # loading the content switch with chat areas
-        chat_area_switcher = self.query_one("#chat_area_switcher", ContentSwitcher)
+        assert isinstance(self.w_contentswitcher, ContentSwitcher)
         # one chat per TOC Node identified by the toc Address
         toc_tree = TocTreeNode.from_json(json.loads(book.toc_tree))
         for node in toc_tree.preorder():
@@ -111,7 +111,7 @@ class TOCReaderScreen(Screen):
                 toc_address=convo_key,
                 chapter_content=chapter_contents[0].content if chapter_contents else "",
             )
-            chat_area_switcher.add_content(chat_widget, id=chat_widget.widget_id)
+            self.w_contentswitcher.add_content(chat_widget, id=chat_widget.widget_id)
         for convo in all_convo:
             assert isinstance(convo.toc_address, str)
             # conversation are identified by their toc_address and inner numbering
@@ -122,29 +122,14 @@ class TOCReaderScreen(Screen):
                 convo_content=convo.content or "",
             )
             widget_id = chat_widget.widget_id
-            chat_area_switcher.add_content(chat_widget, id=widget_id)
+            self.w_contentswitcher.add_content(chat_widget, id=widget_id)
 
-    def _create_conversation(self, toc_address: str) -> Convo:
-        
-        with get_session(self.app.get_db()) as session:
-            book = session.query(Book).filter_by(id=self.book_id).one()
-            new_convo = Convo(
-                content="",
-                toc_address=toc_address,
-                book_id=self.book_id,
-            )
-            session.add(new_convo)
-            session.commit()
-            session.refresh(new_convo)
-        return new_convo
+    
 
     @on(ChapterView.StartConversation)
     async def start_conversation(self, event: ChapterView.StartConversation) -> None:
         sender = event.sender
-        sender.toc_address
-        sender.book.id
-        sender.chapter_content
-        new_convo = self._create_conversation(sender.toc_address)
+        new_convo = create_conversation(self.app, sender.book.id, sender.toc_address)
 
         chat_area_switcher = self.query_one("#chat_area_switcher", ContentSwitcher)
         chat_list = self.query_one("#chat_list", ChatList)

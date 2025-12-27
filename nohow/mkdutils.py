@@ -155,10 +155,10 @@ def _extract_toc_(
 class TocTreeNode:
     key: str
 
-    level: int
-    index: List[int]
+    level: int # depth level
+    index: List[int] # like [0,1,1] is actually 0.1.1 in chaptering 
     title: str
-    start_line: int
+    start_line: int # calculated after building the tree, not set during markdown parsing
     end_line: int
 
     children: Tuple["TocTreeNode", ...] = field(default_factory=tuple)

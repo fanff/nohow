@@ -40,17 +40,7 @@ from nohow.db.utils import get_session
 from nohow.textual_comp.widgets.chatbox import ChatInputArea, ChatMessage
 from shortuuid import ShortUUID
 
-
-class IsTyping(Horizontal):
-    DEFAULT_CSS = """
-    IsTyping {
-        height: 1;
-        }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield LoadingIndicator()
-        yield Label("  AI is responding ")
+from nohow.textual_comp.widgets.utils import IsTyping
 
 
 class ChatFlowWidget(Widget):
@@ -161,8 +151,8 @@ class ChatFlowWidget(Widget):
     def compose(self):
         yield Static(f"chapter : {self.toc_address} , bookid: {self.book_id} ")
         yield Static(f"Conversation ID: {self.convo_id}")
-        # yield Static(f"Conversation Content: {self.convo_content}")
-        # yield UserInputWidget(id="user_input_widget")
+
+
         with VerticalScroll(id="chat-scroll-container") as vertical_scroll:
             self.chat_container = vertical_scroll
             vertical_scroll.can_focus = False
@@ -275,6 +265,11 @@ class ChapterView(Widget):
         
         height: 100%;
     }
+
+    #chapter_content_md {
+        border: round $accent;
+        margin: 0 10 0 10;
+    }
     
     """
 
@@ -300,22 +295,26 @@ class ChapterView(Widget):
         self.toc_address = toc_address
 
         self.chapter_content: str = chapter_content
-
+        self.responding_indicator = IsTyping()
+        self.responding_indicator.display = False
     @property
     def widget_id(self):
         return f"convo_{self.toc_address.replace('.', '_')}"
 
     def compose(self):
         with VerticalScroll():
-            yield Static(
-                f"{self.book.title} chapter : {self.toc_address} , bookid: {self.book_id} "
-            )
-            yield Static(f"TOC Title: {self.tocnode}")
-            yield Static(f"Generation inputs:\n{self.get_chapter_inputs()}")
+            yield self.responding_indicator
+            # yield Static(
+            #     f"{self.book.title} chapter : {self.toc_address} , bookid: {self.book_id} "
+            # )
+            # yield Static(f"TOC Title: {self.tocnode}")
+            # yield Static(f"Generation inputs:\n{self.get_chapter_inputs()}")
+
+            
             yield Markdown(self.chapter_content, id="chapter_content_md")
 
             yield Button("Generate Chapter", id="generate_chap_button")
-
+            yield Input(value="250", placeholder="Chapter Length", id="chapter_length_input", type="number")
             yield Button("Start Conversation", id="start_convo_button")
 
     def book_extract(self) -> str:
@@ -336,6 +335,7 @@ class ChapterView(Widget):
     @on(Button.Pressed, "#generate_chap_button")
     async def generate_chapter(self, event: Button.Pressed) -> None:
         event.stop()
+        self.responding_indicator.display = True
         # 1. gather the inputs for generation
         chain = build_chain(self.app.app_context.llm)
 
@@ -384,7 +384,7 @@ class ChapterView(Widget):
                 session.commit()
                 session.refresh(new_chapter)
 
-        new_chapter
+        self.responding_indicator.display = False
 
     @on(Button.Pressed, "#start_convo_button")
     def start_conversation(self) -> None:
