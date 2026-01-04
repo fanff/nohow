@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "kokoro>=0.9.4",
     "langchain[openai]>=1.2.0",
     "mirascope[openai]>=1.25.7",
     "pyperclip>=1.11.0",
@@ -15,7 +16,17 @@ dependencies = [
     "textual>=6.11.0",
 ]
 
+
 [dependency-groups]
-dev = [
-    "textual-dev>=1.8.0",
-]
+dev = ["textual-dev>=1.8.0"]
+
+# define a command "nohow" that run nohow.main:main
+[project.scripts]
+nohow = "nohow.main:main"
+
+[build-system]
+requires = ["setuptools>=65.5.1", "setuptools_scm>=6.3.2", "wheel"]
+
+# include package
+[tool.setuptools.packages.find]
+include = ["nohow*"]

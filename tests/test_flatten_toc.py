@@ -1,5 +1,11 @@
 import json
-from nohow.mkdutils import _extract_toc_, flatten_toc, to_tree, TocTreeNode
+from nohow.mkdutils import (
+    _extract_toc_,
+    flatten_toc,
+    to_tree,
+    TocTreeNode,
+    extract_toc_tree,
+)
 
 
 def test_extract_and_flatten_toc_basic() -> None:
@@ -47,3 +53,18 @@ def test_extract_toc_ignores_fenced_code_blocks() -> None:
         (2, "Also Real"),
         (2, "Also Real"),
     ]
+
+
+def test_extract_toc_tree() -> None:
+    toc_text = """
+## Chapter 1
+Some text here.
+## Chapter 2
+### Section 2.1
+#### Subsection 2.1.1
+## Chapter 3
+""".lstrip()
+
+    toc_tree = extract_toc_tree(toc_text)
+
+    toc_tree.children

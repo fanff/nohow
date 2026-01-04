@@ -1,7 +1,7 @@
 import asyncio
 from nohow.prompts.chat_gen import ChatSession, make_chat_session
 from langchain.messages import HumanMessage, AIMessage
-from nohow.prompts.chap_gen import ChapterInputs, DummyStreamingRunnable, build_chain
+from nohow.prompts.chap_gen import ChapterInputs, build_chain
 from nohow.prompts.utils import new_message_of_type
 from textual import on
 from typing import List
@@ -139,7 +139,8 @@ class ChatFlowWidget(Widget):
         self.chat_session = make_chat_session(
             llm=llm, chapter_content=self.chapter_content
         )
-        update_convo_content(self.app,
+        update_convo_content(
+            self.app,
             convo_id=self.convo_id,
             new_content=json.dumps(self.chat_session.serialize_conversation()),
         )
@@ -151,7 +152,6 @@ class ChatFlowWidget(Widget):
     def compose(self):
         yield Static(f"chapter : {self.toc_address} , bookid: {self.book_id} ")
         yield Static(f"Conversation ID: {self.convo_id}")
-
 
         with VerticalScroll(id="chat-scroll-container") as vertical_scroll:
             self.chat_container = vertical_scroll
@@ -224,7 +224,8 @@ class ChatFlowWidget(Widget):
                     self.action_last_message()
 
             await ai_message_chatbox.finalize_message()
-            update_convo_content(self.app,
+            update_convo_content(
+                self.app,
                 convo_id=self.convo_id,
                 new_content=json.dumps(self.chat_session.serialize_conversation()),
             )
@@ -257,139 +258,6 @@ class ChatFlowWidget(Widget):
         else:
             self.chat_container.scroll_page_down()
 
-
-class ChapterView(Widget):
-
-    DEFAULT_CSS = """
-    ChapterView {
-        
-        height: 100%;
-    }
-
-    #chapter_content_md {
-        border: round $accent;
-        margin: 0 10 0 10;
-    }
-    
-    """
-
-    @dataclass
-    class StartConversation(Message):
-        def __init__(self, sender: "ChapterView") -> None:
-            super().__init__()
-            self.sender = sender
-
-    def __init__(
-        self,
-        book: Book,
-        tocnode: TocTreeNode,
-        toc_address: str,
-        chapter_content: str,
-        **kwargs,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.book: Book = book
-        self.book_id = book.id
-        self.tocnode: TocTreeNode = tocnode
-        # a string representing toc_address
-        self.toc_address = toc_address
-
-        self.chapter_content: str = chapter_content
-        self.responding_indicator = IsTyping()
-        self.responding_indicator.display = False
-    @property
-    def widget_id(self):
-        return f"convo_{self.toc_address.replace('.', '_')}"
-
-    def compose(self):
-        with VerticalScroll():
-            yield self.responding_indicator
-            # yield Static(
-            #     f"{self.book.title} chapter : {self.toc_address} , bookid: {self.book_id} "
-            # )
-            # yield Static(f"TOC Title: {self.tocnode}")
-            # yield Static(f"Generation inputs:\n{self.get_chapter_inputs()}")
-
-            
-            yield Markdown(self.chapter_content, id="chapter_content_md")
-
-            yield Button("Generate Chapter", id="generate_chap_button")
-            yield Input(value="250", placeholder="Chapter Length", id="chapter_length_input", type="number")
-            yield Button("Start Conversation", id="start_convo_button")
-
-    def book_extract(self) -> str:
-        if self.book:
-            return self.book.get_toc_extract(
-                self.tocnode.start_line - 1, self.tocnode.end_line
-            )
-        return ""
-
-    def get_chapter_inputs(self) -> ChapterInputs:
-        return ChapterInputs(
-            book_title=self.book.title,
-            chapter_title=self.tocnode.title,
-            book_toc=self.book_extract(),
-            chapter_length=250,
-        )
-
-    @on(Button.Pressed, "#generate_chap_button")
-    async def generate_chapter(self, event: Button.Pressed) -> None:
-        event.stop()
-        self.responding_indicator.display = True
-        # 1. gather the inputs for generation
-        chain = build_chain(self.app.app_context.llm)
-
-        self.tocnode.title
-
-        inputs = self.get_chapter_inputs()
-        # 1.1 grab the chapter content area
-        chapter_content_md = self.query_one("#chapter_content_md", Markdown)
-        # reset the content
-        self.chapter_content = ""
-        chapter_content_md.update("")
-
-        # update function
-        async def update_md_content(chunk: str) -> None:
-            self.chapter_content += chunk
-            await chapter_content_md.append(chunk)
-
-        # 2. trigger generation process
-        async for chunk in chain.astream(inputs.to_dict()):
-            await update_md_content(chunk)
-
-        # 3. finalize with saving to DB
-        self.chapter_content
-        self.book_id
-        self.toc_address
-        
-        with get_session(self.app.get_db()) as session:
-            # find if chapter already exists
-            existing_chapter = (
-                session.query(Chapter)
-                .filter_by(toc_address=self.toc_address, book_id=self.book_id)
-                .one_or_none()
-            )
-            if existing_chapter:
-                existing_chapter.content = self.chapter_content
-                session.commit()
-                session.refresh(existing_chapter)
-                new_chapter = existing_chapter
-            else:
-                new_chapter = Chapter(
-                    content=self.chapter_content,
-                    toc_address=self.toc_address,
-                    book_id=self.book_id,
-                )
-                session.add(new_chapter)
-                session.commit()
-                session.refresh(new_chapter)
-
-        self.responding_indicator.display = False
-
-    @on(Button.Pressed, "#start_convo_button")
-    def start_conversation(self) -> None:
-        event = self.StartConversation(self)
-        self.post_message(event)
 
 
 class UserInputWidget(Widget):

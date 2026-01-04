@@ -12,8 +12,8 @@ from nohow.db.utils import get_session, setup_database
 from nohow.textual_comp.screens.tocedit import BookEditWidget
 from textual.containers import Horizontal
 
+from nohow.textual_comp.widgets.chapter_view import ChapterView
 from nohow.textual_comp.widgets.chatflow import (
-    ChapterView,
     ChatFlowWidget,
     ChatList,
     ChatListItem,
@@ -21,7 +21,7 @@ from nohow.textual_comp.widgets.chatflow import (
 
 
 class TOCReaderScreen(Screen):
-    """Écran de lecture / conversation sur un chapitre (placeholder)."""
+    """Main Reading Screen showing the TOC and chat areas."""
 
     DEFAULT_CSS = """
     TOCReaderScreen {
@@ -41,7 +41,6 @@ class TOCReaderScreen(Screen):
 
         width: 3fr;
         height: 100%;
-        
     }
     """
     BINDINGS = [
@@ -59,7 +58,7 @@ class TOCReaderScreen(Screen):
 
         with Horizontal(id="main_area"):
             yield ChatList(id="chat_list")
-            self.w_contentswitcher =  ContentSwitcher(id="chat_area_switcher")
+            self.w_contentswitcher = ContentSwitcher(id="chat_area_switcher")
             yield self.w_contentswitcher
         yield Footer()
 
@@ -82,7 +81,6 @@ class TOCReaderScreen(Screen):
 
     async def _refresh_from_db(self) -> None:
 
-        
         with get_session(self.app.get_db()) as session:
             book = session.query(Book).filter_by(id=self.book_id).one()
             all_chapters: List[Chapter] = list(book.chapter_contents)
@@ -124,11 +122,9 @@ class TOCReaderScreen(Screen):
             widget_id = chat_widget.widget_id
             self.w_contentswitcher.add_content(chat_widget, id=widget_id)
 
-    
-
     @on(ChapterView.StartConversation)
     async def start_conversation(self, event: ChapterView.StartConversation) -> None:
-        sender = event.sender
+        sender: ChapterView = event.sender
         new_convo = create_conversation(self.app, sender.book.id, sender.toc_address)
 
         chat_area_switcher = self.query_one("#chat_area_switcher", ContentSwitcher)

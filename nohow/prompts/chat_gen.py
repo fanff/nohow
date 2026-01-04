@@ -120,34 +120,3 @@ Answer user questions, provide explanation and help user understand your chapter
 """
 
 
-# --- Demo ---
-async def _demo():
-    session = make_chat_session(
-        model_name="gpt-3.5-turbo",
-        system_message=DEFAULT_SYSTEM,
-        temperature=0.4,
-    )
-
-    # Optional: preseed additional context (your “prompt”)
-    session.conversation.append(
-        HumanMessage(
-            content="We are writing a book together. Keep responses practical."
-        )
-    )
-
-    async for chunk in session.send(
-        "Help me design a chapter outline about prompt testing with streaming UIs."
-    ):
-        print(chunk, end="", flush=True)
-
-    print("\n\n--- Conversation state now contains ---")
-    for m in session.conversation:
-        print(
-            type(m).__name__,
-            "=>",
-            (m.content[:80] + "..." if len(m.content) > 80 else m.content),
-        )
-
-
-if __name__ == "__main__":
-    asyncio.run(_demo())
